@@ -3,44 +3,45 @@ import { SemesterId } from '@shared/index.js';
 
 export enum PeriodStatusValue {
   Active = "active",
-  Closed = "closed", 
+  Closed = "closed",
   Suspended = "suspended"
 }
 
-export const PeriodStatus = Schema.Enums(PeriodStatusValue);
+export const PeriodStatusSchema = Schema.Enums(PeriodStatusValue);
 
-export type PeriodStatus = Schema.Schema.Type<typeof PeriodStatus>;
+export type PeriodStatus = Schema.Schema.Type<typeof PeriodStatusSchema>;
 
-export const RegistrationPeriod = Schema.Struct({
-  semesterId: SemesterId.SemesterId,
+export const RegistrationPeriodSchema = Schema.Struct({
+  semesterId: SemesterId.Schema,
   startDate: Schema.Date,
   endDate: Schema.Date,
   dropDeadline: Schema.Date,
-  status: PeriodStatus
+  status: PeriodStatusSchema
 });
 
-export type RegistrationPeriod = Schema.Schema.Type<typeof RegistrationPeriod>;
+export type RegistrationPeriod = Schema.Schema.Type<typeof RegistrationPeriodSchema>;
 
-export const make = (
-  semesterId: SemesterId.SemesterId,
-  startDate: Date,
-  endDate: Date,
-  dropDeadline: Date
-): RegistrationPeriod => ({
-  semesterId,
-  startDate,
-  endDate,
-  dropDeadline,
-  status: PeriodStatusValue.Active
-});
-
-export const isActive = (period: RegistrationPeriod, now: Date = new Date()): boolean => {
-  return period.status === PeriodStatusValue.Active &&
-         now >= period.startDate &&
-         now <= period.endDate;
-};
-
-export const canDrop = (period: RegistrationPeriod, now: Date = new Date()): boolean => {
-  return period.status === PeriodStatusValue.Active &&
-         now <= period.dropDeadline;
-};
+export const RegistrationPeriod = {
+  Schema: RegistrationPeriodSchema,
+  make: (
+    semesterId: SemesterId,
+    startDate: Date,
+    endDate: Date,
+    dropDeadline: Date
+  ): RegistrationPeriod => ({
+    semesterId,
+    startDate,
+    endDate,
+    dropDeadline,
+    status: PeriodStatusValue.Active
+  }),
+  isActive: (period: RegistrationPeriod, now: Date = new Date()): boolean => {
+    return period.status === PeriodStatusValue.Active &&
+           now >= period.startDate &&
+           now <= period.endDate;
+  },
+  canDrop: (period: RegistrationPeriod, now: Date = new Date()): boolean => {
+    return period.status === PeriodStatusValue.Active &&
+           now <= period.dropDeadline;
+  }
+} as const;

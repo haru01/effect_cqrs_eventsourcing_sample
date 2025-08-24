@@ -7,15 +7,21 @@ export enum AttendanceStatusValue {
   Excused = "excused"
 }
 
-export const AttendanceStatus = Schema.Enums(AttendanceStatusValue);
+const AttendanceStatusSchema = Schema.Enums(AttendanceStatusValue);
 
-export type AttendanceStatus = Schema.Schema.Type<typeof AttendanceStatus>;
+export type AttendanceStatus = Schema.Schema.Type<typeof AttendanceStatusSchema>;
 
-export const make = (value: AttendanceStatusValue): AttendanceStatus => 
-  Schema.decodeSync(AttendanceStatus)(value);
-
-export const isPresent = (status: AttendanceStatus): boolean => 
-  status === AttendanceStatusValue.Present;
-
-export const isAbsent = (status: AttendanceStatus): boolean => 
-  status === AttendanceStatusValue.Absent;
+export const AttendanceStatus = {
+  Schema: AttendanceStatusSchema,
+  Value: AttendanceStatusValue,
+  make: (value: AttendanceStatusValue): AttendanceStatus => 
+    Schema.decodeSync(AttendanceStatusSchema)(value),
+  isPresent: (status: AttendanceStatus): boolean => 
+    status === AttendanceStatusValue.Present,
+  isAbsent: (status: AttendanceStatus): boolean => 
+    status === AttendanceStatusValue.Absent,
+  Present: AttendanceStatusValue.Present,
+  Absent: AttendanceStatusValue.Absent,
+  Late: AttendanceStatusValue.Late,
+  Excused: AttendanceStatusValue.Excused
+} as const;

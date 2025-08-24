@@ -6,12 +6,18 @@ export enum AssignmentStatusValue {
   Closed = "closed"
 }
 
-export const AssignmentStatus = Schema.Enums(AssignmentStatusValue);
+const AssignmentStatusSchema = Schema.Enums(AssignmentStatusValue);
 
-export type AssignmentStatus = Schema.Schema.Type<typeof AssignmentStatus>;
+export type AssignmentStatus = Schema.Schema.Type<typeof AssignmentStatusSchema>;
 
-export const make = (value: AssignmentStatusValue): AssignmentStatus => 
-  Schema.decodeSync(AssignmentStatus)(value);
-
-export const isPublished = (status: AssignmentStatus): boolean => 
-  status === AssignmentStatusValue.Published;
+export const AssignmentStatus = {
+  Schema: AssignmentStatusSchema,
+  Value: AssignmentStatusValue,
+  make: (value: AssignmentStatusValue): AssignmentStatus => 
+    Schema.decodeSync(AssignmentStatusSchema)(value),
+  isPublished: (status: AssignmentStatus): boolean => 
+    status === AssignmentStatusValue.Published,
+  Draft: AssignmentStatusValue.Draft,
+  Published: AssignmentStatusValue.Published,
+  Closed: AssignmentStatusValue.Closed
+} as const;

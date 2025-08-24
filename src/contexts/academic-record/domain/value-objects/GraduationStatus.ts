@@ -6,12 +6,18 @@ export enum GraduationStatusValue {
   Graduated = "graduated"
 }
 
-export const GraduationStatus = Schema.Enums(GraduationStatusValue);
+const GraduationStatusSchema = Schema.Enums(GraduationStatusValue);
 
-export type GraduationStatus = Schema.Schema.Type<typeof GraduationStatus>;
+export type GraduationStatus = Schema.Schema.Type<typeof GraduationStatusSchema>;
 
-export const make = (value: GraduationStatusValue): GraduationStatus => 
-  Schema.decodeSync(GraduationStatus)(value);
-
-export const canGraduate = (status: GraduationStatus): boolean => 
-  status === GraduationStatusValue.Eligible;
+export const GraduationStatus = {
+  Schema: GraduationStatusSchema,
+  Value: GraduationStatusValue,
+  make: (value: GraduationStatusValue): GraduationStatus => 
+    Schema.decodeSync(GraduationStatusSchema)(value),
+  canGraduate: (status: GraduationStatus): boolean => 
+    status === GraduationStatusValue.Eligible,
+  Eligible: GraduationStatusValue.Eligible,
+  NotEligible: GraduationStatusValue.NotEligible,
+  Graduated: GraduationStatusValue.Graduated
+} as const;

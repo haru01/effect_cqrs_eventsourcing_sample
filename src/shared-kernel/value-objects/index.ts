@@ -1,2 +1,2 @@
-export * as Grade from './Grade.js';
-export * as CreditUnit from './CreditUnit.js';
+export { Grade, GradeValue } from './Grade.js';
+export { CreditUnit } from './CreditUnit.js';

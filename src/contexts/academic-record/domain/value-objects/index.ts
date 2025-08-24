@@ -1,3 +1,3 @@
-export * as GradeStatus from './GradeStatus.js';
-export * as AcademicStatus from './AcademicStatus.js';
-export * as GraduationStatus from './GraduationStatus.js';
+export { GradeStatus, GradeStatusValue } from './GradeStatus.js';
+export { AcademicStatus, AcademicStatusValue } from './AcademicStatus.js';
+export { GraduationStatus, GraduationStatusValue } from './GraduationStatus.js';

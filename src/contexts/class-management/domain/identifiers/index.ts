@@ -1,2 +1,2 @@
-export * as ClassSessionId from './ClassSessionId.js';
-export * as AssignmentId from './AssignmentId.js';
+export { ClassSessionId } from './ClassSessionId.js';
+export { AssignmentId } from './AssignmentId.js';

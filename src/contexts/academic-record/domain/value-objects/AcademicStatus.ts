@@ -6,12 +6,18 @@ export enum AcademicStatusValue {
   Probation = "probation"
 }
 
-export const AcademicStatus = Schema.Enums(AcademicStatusValue);
+const AcademicStatusSchema = Schema.Enums(AcademicStatusValue);
 
-export type AcademicStatus = Schema.Schema.Type<typeof AcademicStatus>;
+export type AcademicStatus = Schema.Schema.Type<typeof AcademicStatusSchema>;
 
-export const make = (value: AcademicStatusValue): AcademicStatus => 
-  Schema.decodeSync(AcademicStatus)(value);
-
-export const isGoodStanding = (status: AcademicStatus): boolean => 
-  status === AcademicStatusValue.GoodStanding;
+export const AcademicStatus = {
+  Schema: AcademicStatusSchema,
+  Value: AcademicStatusValue,
+  make: (value: AcademicStatusValue): AcademicStatus =>
+    Schema.decodeSync(AcademicStatusSchema)(value),
+  isGoodStanding: (status: AcademicStatus): boolean =>
+    status === AcademicStatusValue.GoodStanding,
+  GoodStanding: AcademicStatusValue.GoodStanding,
+  Warning: AcademicStatusValue.Warning,
+  Probation: AcademicStatusValue.Probation
+} as const;

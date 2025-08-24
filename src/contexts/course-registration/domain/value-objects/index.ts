@@ -1,2 +1,2 @@
-export * as RegistrationStatus from './RegistrationStatus.js';
-export * as CourseType from './CourseType.js';
+export { RegistrationStatus, RegistrationStatusValue } from './RegistrationStatus.js';
+export { CourseType, CourseTypeValue } from './CourseType.js';

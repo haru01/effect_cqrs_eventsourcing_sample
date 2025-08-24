@@ -7,12 +7,19 @@ export enum SessionStatusValue {
   Cancelled = "cancelled"
 }
 
-export const SessionStatus = Schema.Enums(SessionStatusValue);
+const SessionStatusSchema = Schema.Enums(SessionStatusValue);
 
-export type SessionStatus = Schema.Schema.Type<typeof SessionStatus>;
+export type SessionStatus = Schema.Schema.Type<typeof SessionStatusSchema>;
 
-export const make = (value: SessionStatusValue): SessionStatus => 
-  Schema.decodeSync(SessionStatus)(value);
-
-export const isActive = (status: SessionStatus): boolean => 
-  status === SessionStatusValue.InProgress;
+export const SessionStatus = {
+  Schema: SessionStatusSchema,
+  Value: SessionStatusValue,
+  make: (value: SessionStatusValue): SessionStatus => 
+    Schema.decodeSync(SessionStatusSchema)(value),
+  isActive: (status: SessionStatus): boolean => 
+    status === SessionStatusValue.InProgress,
+  Scheduled: SessionStatusValue.Scheduled,
+  InProgress: SessionStatusValue.InProgress,
+  Completed: SessionStatusValue.Completed,
+  Cancelled: SessionStatusValue.Cancelled
+} as const;

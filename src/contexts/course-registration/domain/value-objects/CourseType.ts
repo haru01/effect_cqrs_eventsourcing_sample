@@ -6,12 +6,18 @@ export enum CourseTypeValue {
   General = "general"
 }
 
-export const CourseType = Schema.Enums(CourseTypeValue);
+const CourseTypeSchema = Schema.Enums(CourseTypeValue);
 
-export type CourseType = Schema.Schema.Type<typeof CourseType>;
+export type CourseType = Schema.Schema.Type<typeof CourseTypeSchema>;
 
-export const make = (value: CourseTypeValue): CourseType => 
-  Schema.decodeSync(CourseType)(value);
-
-export const isRequired = (type: CourseType): boolean => 
-  type === CourseTypeValue.Required;
+export const CourseType = {
+  Schema: CourseTypeSchema,
+  Value: CourseTypeValue,
+  make: (value: CourseTypeValue): CourseType => 
+    Schema.decodeSync(CourseTypeSchema)(value),
+  isRequired: (type: CourseType): boolean => 
+    type === CourseTypeValue.Required,
+  Required: CourseTypeValue.Required,
+  Elective: CourseTypeValue.Elective,
+  General: CourseTypeValue.General
+} as const;

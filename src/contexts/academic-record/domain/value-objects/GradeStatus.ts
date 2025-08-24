@@ -7,12 +7,19 @@ export enum GradeStatusValue {
   Published = "published"
 }
 
-export const GradeStatus = Schema.Enums(GradeStatusValue);
+const GradeStatusSchema = Schema.Enums(GradeStatusValue);
 
-export type GradeStatus = Schema.Schema.Type<typeof GradeStatus>;
+export type GradeStatus = Schema.Schema.Type<typeof GradeStatusSchema>;
 
-export const make = (value: GradeStatusValue): GradeStatus => 
-  Schema.decodeSync(GradeStatus)(value);
-
-export const isFinalized = (status: GradeStatus): boolean => 
-  status === GradeStatusValue.Finalized || status === GradeStatusValue.Published;
+export const GradeStatus = {
+  Schema: GradeStatusSchema,
+  Value: GradeStatusValue,
+  make: (value: GradeStatusValue): GradeStatus => 
+    Schema.decodeSync(GradeStatusSchema)(value),
+  isFinalized: (status: GradeStatus): boolean => 
+    status === GradeStatusValue.Finalized || status === GradeStatusValue.Published,
+  NotEntered: GradeStatusValue.NotEntered,
+  Entered: GradeStatusValue.Entered,
+  Finalized: GradeStatusValue.Finalized,
+  Published: GradeStatusValue.Published
+} as const;
