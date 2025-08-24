@@ -11,17 +11,21 @@ export const PeriodStatusSchema = Schema.Enums(PeriodStatusValue);
 
 export type PeriodStatus = Schema.Schema.Type<typeof PeriodStatusSchema>;
 
+/**
+ * 履修登録期間スキーマ
+ * 学期ごとの履修登録と履修取消の期間を管理する集約ルート
+ */
 export const RegistrationPeriodSchema = Schema.Struct({
-  semesterId: SemesterId.Schema,
-  startDate: Schema.Date,
-  endDate: Schema.Date,
-  dropDeadline: Schema.Date,
-  status: PeriodStatusSchema
+  semesterId: SemesterId.Schema.annotations({ title: "学期ID" }),
+  startDate: Schema.Date.annotations({ title: "登録開始日" }),
+  endDate: Schema.Date.annotations({ title: "登録終了日" }),
+  dropDeadline: Schema.Date.annotations({ title: "履修取消期限" }),
+  status: PeriodStatusSchema.annotations({ title: "期間ステータス" })
 });
 
 export type RegistrationPeriod = Schema.Schema.Type<typeof RegistrationPeriodSchema>;
 
-export const RegistrationPeriod = {
+export const RegistrationPeriodModule = {
   Schema: RegistrationPeriodSchema,
   make: (
     semesterId: SemesterId,
@@ -45,3 +49,5 @@ export const RegistrationPeriod = {
            now <= period.dropDeadline;
   }
 } as const;
+
+export { RegistrationPeriodModule as RegistrationPeriod };
