@@ -1,55 +1,55 @@
 import * as Schema from '@effect/schema/Schema';
 import { StudentId, CourseId, SemesterId } from '@shared/index.js';
 
-export const RegistrationPeriodStarted = Schema.Struct({
+export const RegistrationPeriodStartedSchema = Schema.Struct({
   type: Schema.Literal("RegistrationPeriodStarted"),
-  semesterId: SemesterId.SemesterId,
+  semesterId: SemesterId.Schema,
   startDate: Schema.Date,
   endDate: Schema.Date,
   timestamp: Schema.Date
 });
 
-export type RegistrationPeriodStarted = Schema.Schema.Type<typeof RegistrationPeriodStarted>;
+export type RegistrationPeriodStarted = Schema.Schema.Type<typeof RegistrationPeriodStartedSchema>;
 
-export const CourseSelected = Schema.Struct({
+export const CourseSelectedSchema = Schema.Struct({
   type: Schema.Literal("CourseSelected"),
-  studentId: StudentId.StudentId,
-  semesterId: SemesterId.SemesterId,
-  courseId: CourseId.CourseId,
+  studentId: StudentId.Schema,
+  semesterId: SemesterId.Schema,
+  courseId: CourseId.Schema,
   timestamp: Schema.Date
 });
 
-export type CourseSelected = Schema.Schema.Type<typeof CourseSelected>;
+export type CourseSelected = Schema.Schema.Type<typeof CourseSelectedSchema>;
 
-export const RegistrationSubmitted = Schema.Struct({
+export const RegistrationSubmittedSchema = Schema.Struct({
   type: Schema.Literal("RegistrationSubmitted"),
-  studentId: StudentId.StudentId,
-  semesterId: SemesterId.SemesterId,
-  submittedCourses: Schema.Array(CourseId.CourseId),
+  studentId: StudentId.Schema,
+  semesterId: SemesterId.Schema,
+  submittedCourses: Schema.Array(CourseId.Schema),
   timestamp: Schema.Date
 });
 
-export type RegistrationSubmitted = Schema.Schema.Type<typeof RegistrationSubmitted>;
+export type RegistrationSubmitted = Schema.Schema.Type<typeof RegistrationSubmittedSchema>;
 
-export const RegistrationConfirmed = Schema.Struct({
+export const RegistrationConfirmedSchema = Schema.Struct({
   type: Schema.Literal("RegistrationConfirmed"),
-  studentId: StudentId.StudentId,
-  semesterId: SemesterId.SemesterId,
-  confirmedCourses: Schema.Array(CourseId.CourseId),
+  studentId: StudentId.Schema,
+  semesterId: SemesterId.Schema,
+  confirmedCourses: Schema.Array(CourseId.Schema),
   timestamp: Schema.Date
 });
 
-export type RegistrationConfirmed = Schema.Schema.Type<typeof RegistrationConfirmed>;
+export type RegistrationConfirmed = Schema.Schema.Type<typeof RegistrationConfirmedSchema>;
 
-export const CourseDropped = Schema.Struct({
+export const CourseDroppedSchema = Schema.Struct({
   type: Schema.Literal("CourseDropped"),
-  studentId: StudentId.StudentId,
-  semesterId: SemesterId.SemesterId,
-  courseId: CourseId.CourseId,
+  studentId: StudentId.Schema,
+  semesterId: SemesterId.Schema,
+  courseId: CourseId.Schema,
   timestamp: Schema.Date
 });
 
-export type CourseDropped = Schema.Schema.Type<typeof CourseDropped>;
+export type CourseDropped = Schema.Schema.Type<typeof CourseDroppedSchema>;
 
 export type RegistrationEvent =
   | RegistrationPeriodStarted
@@ -57,3 +57,5 @@ export type RegistrationEvent =
   | RegistrationSubmitted
   | RegistrationConfirmed
   | CourseDropped;
+
+  // TODO RegistrationRejected

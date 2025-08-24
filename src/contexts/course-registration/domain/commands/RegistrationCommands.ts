@@ -1,48 +1,48 @@
 import * as Schema from '@effect/schema/Schema';
 import { StudentId, CourseId, SemesterId } from '@shared/index.js';
 
-export const StartRegistrationPeriod = Schema.Struct({
+export const StartRegistrationPeriodSchema = Schema.Struct({
   type: Schema.Literal("StartRegistrationPeriod"),
-  semesterId: SemesterId.SemesterId,
+  semesterId: SemesterId.Schema,
   startDate: Schema.Date,
   endDate: Schema.Date
 });
 
-export type StartRegistrationPeriod = Schema.Schema.Type<typeof StartRegistrationPeriod>;
+export type StartRegistrationPeriod = Schema.Schema.Type<typeof StartRegistrationPeriodSchema>;
 
-export const SelectCourse = Schema.Struct({
+export const SelectCourseSchema = Schema.Struct({
   type: Schema.Literal("SelectCourse"),
-  studentId: StudentId.StudentId,
-  semesterId: SemesterId.SemesterId,
-  courseId: CourseId.CourseId
+  studentId: StudentId.Schema,
+  semesterId: SemesterId.Schema,
+  courseId: CourseId.Schema
 });
 
-export type SelectCourse = Schema.Schema.Type<typeof SelectCourse>;
+export type SelectCourse = Schema.Schema.Type<typeof SelectCourseSchema>;
 
-export const SubmitRegistration = Schema.Struct({
+export const SubmitRegistrationSchema = Schema.Struct({
   type: Schema.Literal("SubmitRegistration"),
-  studentId: StudentId.StudentId,
-  semesterId: SemesterId.SemesterId
+  studentId: StudentId.Schema,
+  semesterId: SemesterId.Schema
 });
 
-export type SubmitRegistration = Schema.Schema.Type<typeof SubmitRegistration>;
+export type SubmitRegistration = Schema.Schema.Type<typeof SubmitRegistrationSchema>;
 
-export const ApproveRegistration = Schema.Struct({
+export const ApproveRegistrationSchema = Schema.Struct({
   type: Schema.Literal("ApproveRegistration"),
-  studentId: StudentId.StudentId,
-  semesterId: SemesterId.SemesterId
+  studentId: StudentId.Schema,
+  semesterId: SemesterId.Schema
 });
 
-export type ApproveRegistration = Schema.Schema.Type<typeof ApproveRegistration>;
+export type ApproveRegistration = Schema.Schema.Type<typeof ApproveRegistrationSchema>;
 
-export const DropCourse = Schema.Struct({
+export const DropCourseSchema = Schema.Struct({
   type: Schema.Literal("DropCourse"),
-  studentId: StudentId.StudentId,
-  semesterId: SemesterId.SemesterId,
-  courseId: CourseId.CourseId
+  studentId: StudentId.Schema,
+  semesterId: SemesterId.Schema,
+  courseId: CourseId.Schema
 });
 
-export type DropCourse = Schema.Schema.Type<typeof DropCourse>;
+export type DropCourse = Schema.Schema.Type<typeof DropCourseSchema>;
 
 export type RegistrationCommand =
   | StartRegistrationPeriod
@@ -50,3 +50,5 @@ export type RegistrationCommand =
   | SubmitRegistration
   | ApproveRegistration
   | DropCourse;
+
+  // TODO RejectRegistration
