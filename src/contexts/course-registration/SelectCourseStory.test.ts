@@ -82,6 +82,7 @@ describe("Story 2.1: 履修科目選択", () => {
         isRequired: command.isRequired
       };
       
+      // イベント生成のみをテスト（集約更新はなし）
       const error = yield* StudentRegistration.addCourseWithLimitCheck(
         registration as any,
         selectedCourse

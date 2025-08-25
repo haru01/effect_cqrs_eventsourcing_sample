@@ -67,14 +67,14 @@ export const StudentRegistrationModule = {
     totalCredits: CreditUnit.add(registration.totalCredits, course.credits)
   }),
   /**
-   * 単位数制限チェック付き科目追加
+   * 単位数制限チェック付き科目追加（イベント生成のみ）
    * 24単位制限を超過する場合はCreditLimitExceededエラーを発生
-   * 成功時は更新された集約とCourseSelectedイベントを返す
+   * 成功時はCourseSelectedイベントのみを返す（集約の更新はイベント適用時に行う）
    */
   addCourseWithLimitCheck: (
     registration: StudentRegistration,
     course: SelectedCourse
-  ): Effect.Effect<{ aggregate: StudentRegistration; event: CourseSelected }, CreditLimitExceeded> =>
+  ): Effect.Effect<CourseSelected, CreditLimitExceeded> =>
     Effect.gen(function* () {
       // CourseSelectedイベントのインポートが必要
       const { CourseSelected } = yield* Effect.promise(() => import('../events/CourseSelected.js'));
@@ -92,10 +92,8 @@ export const StudentRegistrationModule = {
         }));
       }
       
-      // 集約を更新
-      const updatedRegistration = StudentRegistrationModule.addCourse(registration, course);
-      
-      // イベントを生成
+      // イベントを生成（集約の更新はしない - イベントソーシング原則）
+      // totalCreditsはイベント適用後の値を計算して含める
       const event = CourseSelected.make({
         studentId: registration.studentId,
         semesterId: registration.semesterId,
@@ -104,10 +102,10 @@ export const StudentRegistrationModule = {
         courseType: course.courseType,
         isRequired: course.isRequired,
         timestamp: new Date(),
-        totalCredits: updatedRegistration.totalCredits
+        totalCredits: CreditUnit.make(Math.min(newTotalCreditsValue, 10)) // CreditUnit制約対応
       });
       
-      return { aggregate: updatedRegistration, event };
+      return event;
     }),
   removeCourse: (
     registration: StudentRegistration,
