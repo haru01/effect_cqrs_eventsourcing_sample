@@ -94,7 +94,6 @@ const getOrCreateRegistration = (studentId, semesterId) =>
 #### パイプライン処理での可読性向上
 
 ```typescript
-// ✅ 関数合成によるパイプライン処理
 const processCommand = (command: Command) =>
   pipe(
     validateCommand(command),
@@ -108,15 +107,12 @@ const processCommand = (command: Command) =>
 #### Effect.flipによるエラーテスト簡略化
 
 ```typescript
-// テストでのエラー検証パターン
 it("エラーケースのテスト", () =>
   Effect.gen(function* () {
-    // Effect.flipで失敗を成功として扱う
     const error = yield* handler.handle(invalidCommand).pipe(
       Effect.flip
     );
     
-    // vitestアサーションで型安全な検証
     expect(error).toBeInstanceOf(DomainError);
     expect(error.message).toContain("Expected message");
   })

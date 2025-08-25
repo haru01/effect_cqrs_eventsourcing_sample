@@ -289,13 +289,7 @@ yield* EventStore.append(streamId, courseSelected, 'CourseSelected');
 #### 3. vitestアサーションによるテスト品質向上
 
 ```typescript
-// ✅ 推奨: vitestの標準アサーション
 expect(result.actualTotalCredits).toBe(24);
 expect(error).toBeInstanceOf(CreditLimitExceeded);
 expect(selectedCourses).toHaveLength(3);
-
-// ❌ 非推奨: 手動エラー
-if (result.actualTotalCredits !== 24) {
-  yield* Effect.fail(new Error("Credit count mismatch"));
-}
 ```

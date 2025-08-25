@@ -43,17 +43,10 @@ const TestLayer = Layer.mergeAll(
 
 ### カスタムアサーション活用の必須パターン
 ```typescript
-// ✅ カスタムアサーション使用（推奨）
 yield* thenRegistrationSessionCreatedEventIsPublished(
   capturedEvents, sessionId, studentId, term
 );
 yield* thenRegistrationSessionCanBeRetrieved(sessionId, studentId, term);
-
-// ❌ 直接アサーション（非推奨）
-const events = yield* Ref.get(capturedEvents);
-expect(events).toHaveLength(1);
-expect(events[0]._tag).toBe("RegistrationSessionCreated");
-// 詳細検証が冗長になり、再利用性が低い
 ```
 
 ### 日本語テスト名の命名基準
@@ -127,20 +120,6 @@ const thenStudentHasTotalCredits = (
 ### vitestアサーションへの移行パターン
 
 ```typescript
-// ❌ 旧: 手動のEffect.fail
-it("テスト", () =>
-  Effect.gen(function* () {
-    const state = yield* getState();
-    if (state.courses.length !== 3) {
-      yield* Effect.fail(new Error(`Expected 3, got ${state.courses.length}`));
-    }
-    if (!(error instanceof DomainError)) {
-      yield* Effect.fail(new Error(`Expected DomainError, got ${error.constructor.name}`));
-    }
-  })
-);
-
-// ✅ 新: vitestアサーション
 it("テスト", () =>
   Effect.gen(function* () {
     const state = yield* getState();
@@ -153,53 +132,13 @@ it("テスト", () =>
 ### エラーテストの簡略化パターン
 
 ```typescript
-// ❌ 旧: Effect.either + タグチェック
-const result = yield* Effect.either(
-  SelectCourseHandler.handle(command)
-);
-if (result._tag === "Left") {
-  const error = result.left;
-  if (!(error instanceof CreditLimitExceeded)) {
-    yield* Effect.fail(new Error("Unexpected error type"));
-  }
-}
-
-// ✅ 新: Effect.flip + vitestアサーション
 const error = yield* whenCourseSelectionFails(command);
 expect(error).toBeInstanceOf(CreditLimitExceeded);
 ```
 
-### 実践例：リファクタリング前後の比較
+### 実践例：改善されたテストパターン
 
 ```typescript
-// ❌ リファクタリング前
-it("AC2: 単位数制限超過", () =>
-  Effect.gen(function* () {
-    // セットアップ
-    yield* SelectCourseHandler.handle(command1);
-    yield* SelectCourseHandler.handle(command2);
-    
-    // エラーチェック
-    const result = yield* Effect.either(
-      SelectCourseHandler.handle(overflowCommand)
-    );
-    
-    if (result._tag !== "Left") {
-      yield* Effect.fail(new Error("Expected error"));
-    }
-    
-    // 状態確認
-    const state = yield* GetStudentRegistrationHandler.handle({
-      studentId, semesterId
-    });
-    
-    if (state.selectedCourses.length !== 2) {
-      yield* Effect.fail(new Error("Course count mismatch"));
-    }
-  })
-);
-
-// ✅ リファクタリング後
 it("AC2: 単位数制限超過", () =>
   Effect.gen(function* () {
     // Given: 既存科目を選択
@@ -222,29 +161,14 @@ it("AC2: 単位数制限超過", () =>
 
 ### ドメイン層
 ```typescript
-// ❌ 悪い例: プリミティブ値使用
-function createSession(studentId: string, term: string) { ... }
-
-// ✅ 良い例: Brand型使用
 function createSession(studentId: StudentId, term: Term) { ... }
 
-// ❌ 悪い例: ドメインロジックがアプリケーション層に漏れる
-// application layer
-const event = new RegistrationSessionCreated({ ... });
-
-// ✅ 良い例: ドメインロジックはドメイン層に
-// domain layer
 export const createRegistrationSession = (...) => new RegistrationSessionCreated({ ... });
-// application layer
 const event = createRegistrationSession(...);
 ```
 
 ### アプリケーション層
 ```typescript
-// ❌ 悪い例: 例外投げる
-if (!session) throw new Error("Session not found");
-
-// ✅ 良い例: Effect型でエラーハンドリング
 const session = yield* repository.findById(sessionId).pipe(
   Effect.flatMap(Option.match({
     onNone: () => Effect.fail(new SessionNotFound({ sessionId })),
@@ -255,28 +179,19 @@ const session = yield* repository.findById(sessionId).pipe(
 
 ### テスト
 ```typescript
-// ❌ 悪い例: 実装詳細のテスト
-it("内部バリデーション関数を呼び出す", () => {
-  // 内部実装に依存するテスト
-});
-
-// ✅ 良い例: ビジネス価値のテスト
 it("AC1: 12単位以上のセッションを提出できる", async () => {
   const sessionId = yield* setupTestSession(studentId, term, [4, 4, 4]);
   yield* submitRegistrationSession({ sessionId, submittedBy: studentId });
   yield* assertSessionSubmittedSuccessfully({ sessionId, capturedEvents });
 });
 
-// ✅ 良い例: カスタムアサーション使用
 yield* assertSessionCreatedSuccessfully({
   sessionId, expectedStudentId, expectedTerm, capturedEvents
 });
 
-// ✅ 良い例: Effect.flipによる失敗テスト
 const error = yield* createRegistrationSession({ studentId, term }).pipe(
   Effect.flip
 );
-// エラーをSuccessとして扱い、その後アサーション
 assertDuplicateSessionError(error, expectedSessionId);
 ```
 
