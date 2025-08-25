@@ -2,7 +2,7 @@ import * as Effect from 'effect/Effect';
 import * as Schema from '@effect/schema/Schema';
 import { StudentId, CourseId, SemesterId, CreditUnit } from '@shared/index.js';
 import { CourseType } from '../../domain/value-objects/index.js';
-import type { CourseSelected } from '../../domain/events/CourseSelected.js';
+import { CourseSelected } from '../../domain/events/CourseSelected.js';
 import { CourseRegistrationDomainError } from '../../domain/errors/DomainErrors.js';
 import { StudentRegistration, SelectedCourse } from '../../domain/aggregates/StudentRegistration.js';
 import { EventStore, EventStoreError } from '../../../../infrastructure/event-store/index.js';
@@ -49,7 +49,7 @@ export const SelectCourseHandler = {
       const additionalCredits = Number(selectedCourse.credits);
       const newTotalCredits = actualCurrentCredits + additionalCredits;
       const creditLimit = 24;
-      
+
       if (newTotalCredits > creditLimit) {
         yield* Effect.fail(new CreditLimitExceeded({
           message: `単位数制限（${creditLimit}単位）を超過します`,
@@ -57,9 +57,8 @@ export const SelectCourseHandler = {
           limit: creditLimit
         }));
       }
-      
+
       // 4. イベント生成（制限チェックに通過した場合のみ）
-      const { CourseSelected } = yield* Effect.promise(() => import('../../domain/events/CourseSelected.js'));
       const event = CourseSelected.make({
         studentId: registration.studentId,
         semesterId: registration.semesterId,
@@ -95,23 +94,18 @@ const getOrCreateStudentRegistration = (
   semesterId: SemesterId
 ): Effect.Effect<StudentRegistrationWithActualCredits, never, EventStore> =>
   Effect.gen(function* () {
-    // 既存の状態をクエリハンドラーで取得を試行
-    const existingStateResult = yield* Effect.either(
-      GetStudentRegistrationHandler.handle({
-        studentId,
-        semesterId
+    // 既存の状態を取得、存在しない場合は初期状態を返す
+    return yield* GetStudentRegistrationHandler.handle({
+      studentId,
+      semesterId
+    }).pipe(
+      Effect.orElse(() => {
+        // 存在しない場合は初期状態を返す
+        const initialState = StudentRegistration.make(studentId, semesterId);
+        return Effect.succeed({
+          ...initialState,
+          actualTotalCredits: 0
+        });
       })
     );
-    
-    // 存在する場合はその状態を返す
-    if (existingStateResult._tag === "Right") {
-      return existingStateResult.right;
-    }
-    
-    // 存在しない場合は初期状態を返す
-    const initialState = StudentRegistration.make(studentId, semesterId);
-    return {
-      ...initialState,
-      actualTotalCredits: 0
-    };
   });
