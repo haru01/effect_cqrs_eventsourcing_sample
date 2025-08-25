@@ -1,6 +1,8 @@
 import * as Schema from '@effect/schema/Schema';
+import * as Effect from 'effect/Effect';
 import { StudentId, CourseId, SemesterId, CreditUnit } from '@shared/index.js';
 import { RegistrationStatus, CourseType } from '../value-objects/index.js';
+import { CreditLimitExceeded } from '../errors/DomainErrors.js';
 
 /**
  * 選択科目スキーマ
@@ -35,6 +37,12 @@ export const SelectedCourseModule = {
   Schema: SelectedCourseSchema
 } as const;
 
+/**
+ * 単位数制限上限（24単位）
+ * CreditUnitは10単位制限があるため、比較用に直接値を使用
+ */
+const CREDIT_LIMIT = 24;
+
 export const StudentRegistrationModule = {
   Schema: StudentRegistrationSchema,
   make: (
@@ -57,6 +65,30 @@ export const StudentRegistrationModule = {
     selectedCourses: [...registration.selectedCourses, course],
     totalCredits: CreditUnit.add(registration.totalCredits, course.credits)
   }),
+  /**
+   * 単位数制限チェック付き科目追加
+   * 24単位制限を超過する場合はCreditLimitExceededエラーを発生
+   */
+  addCourseWithLimitCheck: (
+    registration: StudentRegistration,
+    course: SelectedCourse
+  ): Effect.Effect<StudentRegistration, CreditLimitExceeded> =>
+    Effect.gen(function* () {
+      // CreditUnitの制限を回避して直接数値で計算
+      const currentCreditsValue = Number(registration.totalCredits);
+      const additionalCreditsValue = Number(course.credits);
+      const newTotalCreditsValue = currentCreditsValue + additionalCreditsValue;
+      
+      if (newTotalCreditsValue > CREDIT_LIMIT) {
+        yield* Effect.fail(new CreditLimitExceeded({
+          message: `単位数制限（${CREDIT_LIMIT}単位）を超過します`,
+          currentCredits: currentCreditsValue,
+          limit: CREDIT_LIMIT
+        }));
+      }
+      
+      return StudentRegistrationModule.addCourse(registration, course);
+    }),
   removeCourse: (
     registration: StudentRegistration,
     courseId: CourseId

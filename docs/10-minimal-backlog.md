@@ -16,50 +16,6 @@
 ### Epic 1: 基盤となる共有カーネル
 **価値**: 全コンテキストで使用する基本的な識別子・型の統一
 
-#### Story 1.1: 共有識別子定義
-**As a** システム開発者
-**I want** 基本的な識別子を定義する
-**So that** 各コンテキスト間で一貫した識別子を使用できる
-
-**受け入れ条件**:
-```gherkin
-Given システムが起動している
-When 共有識別子を使用する
-Then StudentId形式（S + 8桁数字）で学生を識別できる
-And CourseId形式（C + 6桁数字）で科目を識別できる
-And InstructorId形式（I + 6桁数字）で教員を識別できる
-And SemesterId形式（YYYY-Season）で学期を識別できる
-```
-
-**技術的受け入れ条件**:
-- Brand型によるプリミティブ値の型安全性
-- Effect型システムとの統合
-- バリデーション機能
-
-**実装ファイル**:
-- `src/shared-kernel/identifiers/` (既存)
-- `src/shared-kernel/identifiers.test.ts` (既存)
-
----
-
-#### Story 1.2: 共有値オブジェクト定義
-**As a** システム開発者
-**I want** 共有されるバリューオブジェクトを定義する
-**So that** コンテキスト間で一貫したデータ表現を使用できる
-
-**受け入れ条件**:
-```gherkin
-Given 識別子が定義されている
-When CreditUnitを作成する
-Then 正の整数値のみを受け入れる
-And Grade値（S/A/B/C/D/F/W/I）を定義できる
-```
-
-**実装ファイル**:
-- `src/shared-kernel/value-objects/` (既存)
-- `src/shared-kernel/value-objects.test.ts` (既存)
-
----
 
 ### Epic 2: 履修管理コンテキスト（最小限）
 **価値**: 学生が科目を選択し、承認を得るまでの基本フロー
