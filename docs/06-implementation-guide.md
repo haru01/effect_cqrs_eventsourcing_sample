@@ -95,6 +95,7 @@ src/
 │   │   │       └── CourseType.ts
 │   │   ├── application/
 │   │   │   ├── command-handlers/
+│   │   │   ├── query-handlers/
 │   │   │   └── event-handlers/
 │   │   └── infrastructure/
 │   │       ├── repositories/
@@ -197,7 +198,7 @@ function createSession(studentId: StudentId, term: Term) {
 // ❌ 悪い例: ミュータブルオブジェクト
 class RegistrationSession {
   constructor(public status: SessionStatus) {}
-  
+
   submit() {
     this.status = 'submitted'; // 状態を直接変更
   }
@@ -206,7 +207,7 @@ class RegistrationSession {
 // ✅ 良い例: イミュータブルオブジェクト
 class RegistrationSession {
   constructor(private readonly status: SessionStatus) {}
-  
+
   submit(): RegistrationSession {
     return new RegistrationSession('submitted'); // 新しいインスタンスを返す
   }

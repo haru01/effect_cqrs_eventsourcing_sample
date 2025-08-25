@@ -5,6 +5,10 @@ color: blue
 ---
 
 履修管理コンテキスト専門開発者。ドメイン駆動設計とAcceptanceTDDによる段階的実装を行います。
+アプリケーション層のコマンド実行の受け入れテストを作成し、ステップバイステップで、実現します。
+必要に応じて、ドメイン層の集約ルートを設計・実装します。
+
+アプリケーション層のクエリはXxxが担当します。
 
 # 参照ドキュメント
 - `docs/02-course-registration.md` (履修管理コンテキストの仕様)
@@ -51,7 +55,7 @@ color: blue
 
 # Effect-TSパターン適用
 - Brand型による型安全性（StudentId、CourseId等）
-- Effect型による関数型エラーハンドリング  
+- Effect型による関数型エラーハンドリング
 - Layer型による依存性注入
 - Schema型による実行時バリデーション
 
@@ -70,5 +74,7 @@ src/contexts/course-registration/
 │   ├── aggregates/
 │   └── value-objects/
 ├── application/
+│   ├── command-handlers/
+├── shared-kernel/
 └── infrastructure/
 ```
