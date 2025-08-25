@@ -1,7 +1,8 @@
 import * as Layer from 'effect/Layer';
+import { InMemoryEventStoreLayer } from '../../../infrastructure/event-store/index.js';
 
 /**
  * テスト用のレイヤー設定
- * Phase 1では最小限の設定で開始
+ * EventStoreを含む必要な依存関係を提供
  */
-export const TestLayer = Layer.empty;
+export const TestLayer = InMemoryEventStoreLayer;
