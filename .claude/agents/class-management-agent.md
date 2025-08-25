@@ -70,5 +70,7 @@ src/contexts/class-management/
 │   ├── identifiers/
 │   └── value-objects/
 ├── application/
+│   ├── command-handlers/
+├── shared-kernel/
 └── infrastructure/
 ```

@@ -16,57 +16,13 @@
 ### Epic 1: 基盤となる共有カーネル
 **価値**: 全コンテキストで使用する基本的な識別子・型の統一
 
-#### Story 1.1: 共有識別子定義
-**As a** システム開発者  
-**I want** 基本的な識別子を定義する  
-**So that** 各コンテキスト間で一貫した識別子を使用できる
-
-**受け入れ条件**:
-```gherkin
-Given システムが起動している
-When 共有識別子を使用する
-Then StudentId形式（S + 8桁数字）で学生を識別できる
-And CourseId形式（C + 6桁数字）で科目を識別できる  
-And InstructorId形式（I + 6桁数字）で教員を識別できる
-And SemesterId形式（YYYY-Season）で学期を識別できる
-```
-
-**技術的受け入れ条件**:
-- Brand型によるプリミティブ値の型安全性
-- Effect型システムとの統合
-- バリデーション機能
-
-**実装ファイル**: 
-- `src/shared-kernel/identifiers.ts`
-- `src/shared-kernel/identifiers.test.ts`
-
----
-
-#### Story 1.2: 共有値オブジェクト定義
-**As a** システム開発者  
-**I want** 共有されるバリューオブジェクトを定義する  
-**So that** コンテキスト間で一貫したデータ表現を使用できる
-
-**受け入れ条件**:
-```gherkin
-Given 識別子が定義されている
-When CreditUnitを作成する
-Then 正の整数値のみを受け入れる
-And Grade値（S/A/B/C/D/F/W/I）を定義できる
-```
-
-**実装ファイル**: 
-- `src/shared-kernel/value-objects.ts`
-- `src/shared-kernel/value-objects.test.ts`
-
----
 
 ### Epic 2: 履修管理コンテキスト（最小限）
 **価値**: 学生が科目を選択し、承認を得るまでの基本フロー
 
 #### Story 2.1: 履修科目選択
-**As a** 学生  
-**I want** 履修したい科目を選択する  
+**As a** 学生
+**I want** 履修したい科目を選択する
 **So that** 履修登録に向けて科目を準備できる
 
 **受け入れ条件**:
@@ -80,22 +36,18 @@ And 学生の履修選択状況が保存される
 ```
 
 **技術的受け入れ条件**:
-- SelectCourse コマンドの実装
-- CourseSelected イベントの実装  
-- StudentRegistration 集約の基本実装
-- 制約チェック機能は除外（最小実装）
 
-**実装ファイル**:
-- `src/course-registration/commands/select-course.ts`
-- `src/course-registration/events/course-selected.ts`
-- `src/course-registration/aggregates/student-registration.ts`
-- `src/course-registration/commands/select-course.test.ts`
+- SelectCourse コマンドの実装
+- CourseSelected イベントの実装
+- ドメインエラーの実装。ただし制約チェック機能は最小実装
+- アプリケーション層のコマンドハンドラー実装
+- StudentRegistration 集約の基本実装
 
 ---
 
 #### Story 2.2: 履修登録提出
-**As a** 学生  
-**I want** 選択した科目セットを履修登録として提出する  
+**As a** 学生
+**I want** 選択した科目セットを履修登録として提出する
 **So that** 教務職員による承認を受けられる
 
 **受け入れ条件**:
@@ -113,35 +65,26 @@ And 提出日時が記録される
 - 基本的な検証のみ（最小実装）
 
 **実装ファイル**:
-- `src/course-registration/commands/submit-registration.ts`
-- `src/course-registration/events/registration-submitted.ts`
-- `src/course-registration/commands/submit-registration.test.ts`
+- `src/contexts/course-registration/domain/commands/`
+- `src/contexts/course-registration/domain/events/`
+- テストファイルは同階層に配置
 
 ---
 
 #### Story 2.3: 履修承認
-**As a** 教務職員  
-**I want** 提出された履修登録を承認する  
+**As a** 教務職員
+**I want** 提出された履修登録を承認する
 **So that** 学生が正式に授業に参加できるようになる
 
 **受け入れ条件**:
 ```gherkin
 Given 履修登録が提出されている
-When 教務職員が承認コマンドを実行する  
+When 教務職員が承認コマンドを実行する
 Then RegistrationConfirmed イベントが発生する
 And 履修ステータスが "confirmed" に変更される
 And 承認日時が記録される
 ```
 
-**技術的受け入れ条件**:
-- ApproveRegistration コマンドの実装
-- RegistrationConfirmed イベントの実装
-- 基本的な権限チェック
-
-**実装ファイル**:
-- `src/course-registration/commands/approve-registration.ts`
-- `src/course-registration/events/registration-confirmed.ts`
-- `src/course-registration/commands/approve-registration.test.ts`
 
 ---
 
@@ -149,8 +92,8 @@ And 承認日時が記録される
 **価値**: 履修が確定した学生に対して授業を開始する
 
 #### Story 3.1: 授業開始
-**As a** 教員  
-**I want** 履修が確定した科目の授業を開始する  
+**As a** 教員
+**I want** 履修が確定した科目の授業を開始する
 **So that** 学生が授業に参加し、学習活動を始められる
 
 **受け入れ条件**:
@@ -158,22 +101,11 @@ And 承認日時が記録される
 Given 科目の履修登録が確定している
 And 少なくとも1名の学生が履修している
 When 教員が授業開始コマンドを実行する
-Then ClassStarted イベントが発生する  
+Then ClassStarted イベントが発生する
 And 授業ステータスが "in_progress" に変更される
 And 履修学生リストが設定される
 ```
 
-**技術的受け入れ条件**:
-- StartClass コマンドの実装
-- ClassStarted イベントの実装
-- ClassSession 集約の基本実装
-- 履修管理からの学生情報参照機能
-
-**実装ファイル**:
-- `src/class-management/commands/start-class.ts`
-- `src/class-management/events/class-started.ts`
-- `src/class-management/aggregates/class-session.ts`
-- `src/class-management/commands/start-class.test.ts`
 
 ---
 
@@ -181,8 +113,8 @@ And 履修学生リストが設定される
 **価値**: 履修確定から授業開始への自動化されたフロー
 
 #### Story 4.1: 履修確定から授業開始への連携
-**As a** システム  
-**I want** 履修が確定された科目の授業を自動的に開始可能状態にする  
+**As a** システム
+**I want** 履修が確定された科目の授業を自動的に開始可能状態にする
 **So that** 教員がスムーズに授業を開始できる
 
 **受け入れ条件**:
@@ -193,14 +125,6 @@ Then 授業管理コンテキストで履修学生情報が更新される
 And 教員が授業開始できる状態になる
 ```
 
-**技術的受け入れ条件**:
-- イベントハンドラーの実装
-- コンテキスト間通信の基本実装
-- Effect によるエラーハンドリング
-
-**実装ファイル**:
-- `src/integration/event-handlers/registration-confirmed-handler.ts`
-- `src/integration/event-handlers/registration-confirmed-handler.test.ts`
 
 ---
 
@@ -208,8 +132,8 @@ And 教員が授業開始できる状態になる
 **価値**: 完全な履修フローの動作確認
 
 #### Story 5.1: 最小限フローのエンドツーエンド実装
-**As a** システムユーザー  
-**I want** 履修選択から授業開始までの完全なフローを実行する  
+**As a** システムユーザー
+**I want** 履修選択から授業開始までの完全なフローを実行する
 **So that** システムが期待通りに動作することを確認できる
 
 **受け入れ条件**:
@@ -217,18 +141,10 @@ And 教員が授業開始できる状態になる
 Given システムが正常に起動している
 When 学生が科目を選択し、登録を提出し、教務職員が承認し、教員が授業を開始する
 Then 全ての工程が正常に完了する
-And 各段階で適切なイベントが発生する  
+And 各段階で適切なイベントが発生する
 And 最終的に学生が授業に参加可能な状態になる
 ```
 
-**技術的受け入れ条件**:
-- 統合テストの実装
-- エラーハンドリングの確認
-- パフォーマンス基準の確認
-
-**実装ファイル**:
-- `src/integration/end-to-end.test.ts`
-- `src/integration/demo-scenario.ts`
 
 ---
 
@@ -283,7 +199,7 @@ And 最終的に学生が授業に参加可能な状態になる
   - コードカバレッジ: > 90%
   - TypeScript エラー: 0件
 
-- **機能指標**  
+- **機能指標**
   - 履修選択から授業開始まで5分以内で完了
   - 同時履修者100名でのパフォーマンス維持
   - 基本的なエラーハンドリング動作

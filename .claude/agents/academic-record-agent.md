@@ -72,5 +72,8 @@ src/contexts/academic-record/
 │   ├── aggregates/
 │   └── value-objects/
 ├── application/
+│   ├── command-handlers/
+├── shared-kernel/
 └── infrastructure/
+
 ```

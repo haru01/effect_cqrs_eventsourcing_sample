@@ -11,6 +11,8 @@ npm run typecheck   # TypeScript型チェック
 
 ## AcceptanceTDD開発手法（必須）
 
+application層のコマンドとクエリの受け入れテストを作成し、ステップバイステップで、実現します。
+
 **原則**: 段階的実装（Red→Green→Refactor）、最小限コード、継続的改善
 
 **3段階アプローチ**:
