@@ -68,6 +68,56 @@
 - `@effect/schema`によるコマンド・イベントの型安全性
 - 実行時型チェック
 
+### 6. Advanced Effect Patterns
+
+#### Effect.orElseパターン
+
+フォールバック処理を簡潔に記述するための推奨パターン：
+
+```typescript
+// Effect.orElse による優雅な処理
+const getOrCreateRegistration = (studentId, semesterId) =>
+  GetStudentRegistrationHandler.handle({
+    studentId,
+    semesterId
+  }).pipe(
+    Effect.orElse(() => {
+      const initialState = StudentRegistration.make(studentId, semesterId);
+      return Effect.succeed({
+        ...initialState,
+        actualTotalCredits: 0
+      });
+    })
+  );
+```
+
+#### パイプライン処理での可読性向上
+
+```typescript
+const processCommand = (command: Command) =>
+  pipe(
+    validateCommand(command),
+    Effect.flatMap(validCmd => getAggregateState(validCmd.id)),
+    Effect.flatMap(state => applyBusinessLogic(state, command)),
+    Effect.tap(newState => persistState(newState)),
+    Effect.tap(newState => publishEvents(newState.events))
+  );
+```
+
+#### Effect.flipによるエラーテスト簡略化
+
+```typescript
+it("エラーケースのテスト", () =>
+  Effect.gen(function* () {
+    const error = yield* handler.handle(invalidCommand).pipe(
+      Effect.flip
+    );
+    
+    expect(error).toBeInstanceOf(DomainError);
+    expect(error.message).toContain("Expected message");
+  })
+);
+
 ## 推奨ディレクトリ構造
 
 ```text
@@ -160,13 +210,7 @@ src/
 Promiseではなく常にEffectを使用
 
 ```typescript
-// ❌ 悪い例: Promise使用
-const createSession = async (data: SessionData): Promise<SessionId> => {
-  const session = await sessionRepository.save(data);
-  return session.id;
-};
-
-// ✅ 良い例: Effect使用
+// Effect による型安全な実装
 const createSession = (data: SessionData): Effect.Effect<SessionId, SessionError, SessionRepository> =>
   Effect.gen(function* () {
     const session = yield* sessionRepository.save(data);
@@ -179,12 +223,7 @@ const createSession = (data: SessionData): Effect.Effect<SessionId, SessionError
 プリミティブ値には必ずBrand型を適用
 
 ```typescript
-// ❌ 悪い例: プリミティブ値使用
-function createSession(studentId: string, term: string) {
-  // 型安全性が低い
-}
-
-// ✅ 良い例: Brand型使用
+// Brand型による型安全性
 function createSession(studentId: StudentId, term: Term) {
   // 型レベルでドメインの意味を表現
 }
@@ -195,16 +234,7 @@ function createSession(studentId: StudentId, term: Term) {
 すべてのドメインオブジェクトはイミュータブル
 
 ```typescript
-// ❌ 悪い例: ミュータブルオブジェクト
-class RegistrationSession {
-  constructor(public status: SessionStatus) {}
-
-  submit() {
-    this.status = 'submitted'; // 状態を直接変更
-  }
-}
-
-// ✅ 良い例: イミュータブルオブジェクト
+// イミュータブルオブジェクトの実装
 class RegistrationSession {
   constructor(private readonly status: SessionStatus) {}
 
@@ -227,11 +257,7 @@ class RegistrationSession {
 ### ドメイン層
 
 ```typescript
-// ❌ 悪い例: ドメインロジックがアプリケーション層に漏れる
-// application layer
-const event = new RegistrationSessionCreated({ ... });
-
-// ✅ 良い例: ドメインロジックはドメイン層に
+// ドメイン層での適切なロジック配置
 // domain layer
 export const createRegistrationSession = (...) => new RegistrationSessionCreated({ ... });
 // application layer
@@ -241,10 +267,7 @@ const event = createRegistrationSession(...);
 ### アプリケーション層
 
 ```typescript
-// ❌ 悪い例: 例外投げる
-if (!session) throw new Error("Session not found");
-
-// ✅ 良い例: Effect型でエラーハンドリング
+// Effect型による型安全なエラーハンドリング
 const session = yield* repository.findById(sessionId).pipe(
   Effect.flatMap(Option.match({
     onNone: () => Effect.fail(new SessionNotFound({ sessionId })),
@@ -256,7 +279,7 @@ const session = yield* repository.findById(sessionId).pipe(
 ### インフラ層
 
 ```typescript
-// ✅ 良い例: Layer合成による依存性注入
+// Layer合成による依存性注入
 const ApplicationLayer = Layer.mergeAll(
   EventStoreLayer,
   EventBusLayer,
@@ -273,7 +296,7 @@ const ApplicationLayer = Layer.mergeAll(
 参照コードから学ぶ、academic-record-agentが従うべき実装パターン：
 
 ```typescript
-// ✅ 標準的なコマンドハンドラー実装パターン
+// 標準的なコマンドハンドラー実装パターン
 export interface CreateRegistrationSessionCommand {
   readonly studentId: StudentId;
   readonly term: Term;
@@ -323,7 +346,7 @@ export const createRegistrationSession = (
 ### ヘルパー関数パターン
 
 ```typescript
-// ✅ 再利用可能なヘルパー関数の実装パターン
+// 再利用可能なヘルパー関数の実装パターン
 /**
  * セッションが存在しないことを確認するヘルパー関数
  * @param sessionId - 確認するセッションのID
@@ -348,39 +371,30 @@ const ensureNotExists = (sessionId: RegistrationSessionId) =>
 #### 1. 型安全な戻り値とエラー型の明示
 
 ```typescript
-// ✅ 良い例: 完全な型注釈
+// 完全な型注釈
 Effect.Effect<
   ReturnType,           // 成功時の戻り値
   DomainError1 | DomainError2 | InfraError, // 発生可能なエラー
   Repository | EventStore | EventBus        // 必要な依存関係
 >
-
-// ❌ 悪い例: 型注釈不十分
-Effect.Effect<any, any, any>
 ```
 
 #### 2. Effect.gen による関数型プログラミング
 
 ```typescript
-// ✅ 良い例: Effect.genによる手続き型風の記述
+// Effect.genによる手続き型風の記述
 Effect.gen(function* () {
   const dependency = yield* SomeDependency;
   const result = yield* someOperation();
   yield* anotherOperation(result);
   return finalResult;
 });
-
-// ❌ 悪い例: Promise使用
-async function badExample() {
-  const result = await someOperation();
-  // Effect-TSの型安全性を損なう
-}
 ```
 
 #### 3. ドメイン検証とビジネスルール
 
 ```typescript
-// ✅ 良い例: ビジネスルールの明確な実装
+// ビジネスルールの明確な実装
 const sessionId = yield* RegistrationSessionId.create(studentId, term);
 yield* ensureNotExists(sessionId);  // 重複チェック
 yield* validateBusinessRules();      // ビジネスルール検証
@@ -389,7 +403,7 @@ yield* validateBusinessRules();      // ビジネスルール検証
 #### 4. イベントソーシングパターン
 
 ```typescript
-// ✅ 良い例: イベント生成・保存・発行の標準パターン
+// イベント生成・保存・発行の標準パターン
 const event = createDomainEvent(aggregateId, ...params);
 
 // イベントストアに保存

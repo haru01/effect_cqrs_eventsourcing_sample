@@ -3,8 +3,9 @@
 ## テスト品質基準（必須遵守）
 
 ### Effect.flipパターンによる失敗テスト
+
 ```typescript
-// ✅ 標準的な失敗テストパターン
+// 標準的な失敗テストパターン
 it("AC2: 同一学生・学期での重複セッション作成を防止する", () =>
   Effect.gen(function* () {
     // Given: 既存セッションが存在する状況
@@ -22,14 +23,6 @@ it("AC2: 同一学生・学期での重複セッション作成を防止する",
     .pipe(Effect.provide(TestLayer))
     .pipe(Effect.runPromise)
 );
-
-// ❌ 悪い例: try-catchやPromise.rejectの使用
-try {
-  await createRegistrationSession({ studentId, term });
-  expect.fail("Should have thrown error");
-} catch (error) {
-  // Effect-TSの型安全性を損なう
-}
 ```
 
 ### TestLayer構成の標準パターン
@@ -50,36 +43,26 @@ const TestLayer = Layer.mergeAll(
 
 ### カスタムアサーション活用の必須パターン
 ```typescript
-// ✅ カスタムアサーション使用（推奨）
 yield* thenRegistrationSessionCreatedEventIsPublished(
   capturedEvents, sessionId, studentId, term
 );
 yield* thenRegistrationSessionCanBeRetrieved(sessionId, studentId, term);
-
-// ❌ 直接アサーション（非推奨）
-const events = yield* Ref.get(capturedEvents);
-expect(events).toHaveLength(1);
-expect(events[0]._tag).toBe("RegistrationSessionCreated");
-// 詳細検証が冗長になり、再利用性が低い
 ```
 
 ### 日本語テスト名の命名基準
+
 ```typescript
-// ✅ 良い例: ビジネス価値を表現する日本語名
+// ビジネス価値を表現する日本語名
 describe("ストーリー1: 履修登録セッション開始", () => {
   it("学生が新学期の履修計画を開始する", () => { ... });
   it("同一学生・学期での重複セッション作成を防止する", () => { ... });
   it("複数学生の並行履修計画をサポートする", () => { ... });
 });
 
-// ❌ 悪い例: 技術的詳細に焦点を当てた命名
-describe("RegistrationSession", () => {
-  it("should create session with valid input", () => { ... });
-  it("should throw error on duplicate", () => { ... });
-});
 ```
 
 ## テスト規約（プロトタイプフェーズ）
+
 1. **AcceptanceTDD優先**: 段階的受け入れテスト実装最優先
 2. **カスタムアサーション必須**: 複雑な検証ロジックは再利用可能な関数化
 3. **Effect.flip活用**: 失敗テストは必ずEffect.flipパターンを使用
@@ -91,33 +74,101 @@ describe("RegistrationSession", () => {
 9. **コメント活用**: Given-When-Thenの境界を明確にするコメント必須
 10. **ヘルパー関数**: 再利用可能なGiven/Thenヘルパー関数の積極的活用
 
+## テストコード改善パターン
+
+### テストヘルパー関数パターン
+
+テストコードの可読性と再利用性を高めるための標準的なヘルパー関数命名規則：
+
+```typescript
+// ✅ whenX: アクション実行を表現
+const whenCourseIsSelected = (command: any) => 
+  SelectCourseHandler.handle(command);
+
+const whenRegistrationIsSubmitted = (command: any) =>
+  SubmitRegistrationHandler.handle(command);
+
+// ✅ whenXFails: 失敗を期待するアクション
+const whenCourseSelectionFails = (command: any) =>
+  Effect.flip(SelectCourseHandler.handle(command));
+
+const whenSubmissionFails = (command: any) =>
+  Effect.flip(SubmitRegistrationHandler.handle(command));
+
+// ✅ getCurrentX: 状態取得を表現
+const getCurrentRegistrationState = (
+  studentId: StudentId,
+  semesterId: SemesterId
+) => GetStudentRegistrationHandler.handle({ studentId, semesterId });
+
+// ✅ thenX: 結果検証を表現
+const thenStudentHasSelectedCourses = (
+  state: any,
+  expectedCount: number
+) => {
+  expect(state.selectedCourses).toHaveLength(expectedCount);
+};
+
+const thenStudentHasTotalCredits = (
+  state: any,
+  expectedCredits: number
+) => {
+  expect(Number(state.totalCredits)).toBe(expectedCredits);
+};
+```
+
+### vitestアサーションへの移行パターン
+
+```typescript
+it("テスト", () =>
+  Effect.gen(function* () {
+    const state = yield* getState();
+    expect(state.courses).toHaveLength(3);
+    expect(error).toBeInstanceOf(DomainError);
+  })
+);
+```
+
+### エラーテストの簡略化パターン
+
+```typescript
+const error = yield* whenCourseSelectionFails(command);
+expect(error).toBeInstanceOf(CreditLimitExceeded);
+```
+
+### 実践例：改善されたテストパターン
+
+```typescript
+it("AC2: 単位数制限超過", () =>
+  Effect.gen(function* () {
+    // Given: 既存科目を選択
+    yield* whenCourseIsSelected(command1);
+    yield* whenCourseIsSelected(command2);
+    
+    // When: 制限超過する科目を選択
+    const error = yield* whenCourseSelectionFails(overflowCommand);
+    
+    // Then: エラーと状態を検証
+    expect(error).toBeInstanceOf(CreditLimitExceeded);
+    
+    const state = yield* getCurrentRegistrationState(studentId, semesterId);
+    thenStudentHasSelectedCourses(state, 2);
+  })
+);
+```
+
 ## アーキテクチャパターン
 
 ### ドメイン層
 ```typescript
-// ❌ 悪い例: プリミティブ値使用
-function createSession(studentId: string, term: string) { ... }
-
-// ✅ 良い例: Brand型使用
 function createSession(studentId: StudentId, term: Term) { ... }
 
-// ❌ 悪い例: ドメインロジックがアプリケーション層に漏れる
-// application layer
-const event = new RegistrationSessionCreated({ ... });
-
-// ✅ 良い例: ドメインロジックはドメイン層に
-// domain layer
 export const createRegistrationSession = (...) => new RegistrationSessionCreated({ ... });
-// application layer
 const event = createRegistrationSession(...);
 ```
 
 ### アプリケーション層
 ```typescript
-// ❌ 悪い例: 例外投げる
-if (!session) throw new Error("Session not found");
-
-// ✅ 良い例: Effect型でエラーハンドリング
 const session = yield* repository.findById(sessionId).pipe(
   Effect.flatMap(Option.match({
     onNone: () => Effect.fail(new SessionNotFound({ sessionId })),
@@ -128,28 +179,19 @@ const session = yield* repository.findById(sessionId).pipe(
 
 ### テスト
 ```typescript
-// ❌ 悪い例: 実装詳細のテスト
-it("内部バリデーション関数を呼び出す", () => {
-  // 内部実装に依存するテスト
-});
-
-// ✅ 良い例: ビジネス価値のテスト
 it("AC1: 12単位以上のセッションを提出できる", async () => {
   const sessionId = yield* setupTestSession(studentId, term, [4, 4, 4]);
   yield* submitRegistrationSession({ sessionId, submittedBy: studentId });
   yield* assertSessionSubmittedSuccessfully({ sessionId, capturedEvents });
 });
 
-// ✅ 良い例: カスタムアサーション使用
 yield* assertSessionCreatedSuccessfully({
   sessionId, expectedStudentId, expectedTerm, capturedEvents
 });
 
-// ✅ 良い例: Effect.flipによる失敗テスト
 const error = yield* createRegistrationSession({ studentId, term }).pipe(
   Effect.flip
 );
-// エラーをSuccessとして扱い、その後アサーション
 assertDuplicateSessionError(error, expectedSessionId);
 ```
 

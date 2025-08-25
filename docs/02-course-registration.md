@@ -93,3 +93,203 @@ RegistrationPeriod {
 - **StudentRegistrationView** - 学生の履修登録状況ビュー
 - **CourseEnrollmentSummary** - 科目別履修者数集計
 - **RegistrationStatistics** - 履修登録統計
+
+## 実装例
+
+### Story 2.1: 履修科目選択の実装
+
+#### Pure Event Sourcing アプローチ
+
+本システムでは Pure Event Sourcing を採用しており、集約は状態を保持せずイベントのみを生成します。
+
+```typescript
+// SelectCourseHandler.ts - コマンドハンドラー実装例
+export const SelectCourseHandler = {
+  handle: ({ studentId, semesterId, courseId, credits }: SelectCourseCommand): 
+    Effect.Effect<CourseSelected, CreditLimitExceeded> => {
+    
+    return Effect.gen(function* () {
+      // 現在の履修状態を取得（Effect.orElse パターン使用）
+      const currentState = yield* GetStudentRegistrationHandler.handle({
+        studentId,
+        semesterId
+      }).pipe(
+        Effect.orElse(() => {
+          // 履修登録が存在しない場合は初期状態を作成
+          const initialState = StudentRegistration.make(studentId, semesterId);
+          return Effect.succeed({
+            ...initialState,
+            actualTotalCredits: 0
+          });
+        })
+      );
+
+      // ビジネスルール: 単位上限チェック（24単位）
+      const newTotalCredits = currentState.actualTotalCredits + credits;
+      if (newTotalCredits > 24) {
+        return yield* Effect.fail(new CreditLimitExceeded(
+          `履修上限を超過: 現在${currentState.actualTotalCredits}単位 + ${credits}単位 = ${newTotalCredits}単位 > 24単位`
+        ));
+      }
+
+      // イベント生成（状態は保持しない）
+      const courseSelected = new CourseSelected({
+        studentId,
+        semesterId,
+        courseId,
+        credits,
+        occurredAt: new Date()
+      });
+
+      // EventStore への永続化
+      yield* EventStore.append(
+        `student-registration-${studentId.value}`,
+        courseSelected,
+        'CourseSelected'
+      );
+
+      return courseSelected;
+    });
+  }
+};
+```
+
+#### クエリハンドラーによる状態再構築
+
+```typescript
+// GetStudentRegistrationHandler.ts - イベントからの状態再構築
+export const GetStudentRegistrationHandler = {
+  handle: ({ studentId, semesterId }: GetStudentRegistrationQuery): 
+    Effect.Effect<StudentRegistrationView, NotFound> => {
+    
+    return Effect.gen(function* () {
+      const streamId = `student-registration-${studentId.value}`;
+      const events = yield* EventStore.getEvents(streamId);
+      
+      if (events.length === 0) {
+        return yield* Effect.fail(new NotFound('履修登録が見つかりません'));
+      }
+      
+      // イベントから状態を再構築
+      let actualTotalCredits = 0;
+      const selectedCourses: any[] = [];
+      
+      for (const event of events) {
+        if (event.type === 'CourseSelected') {
+          const payload = event.payload as CourseSelected;
+          actualTotalCredits += payload.credits;
+          selectedCourses.push({
+            courseId: payload.courseId,
+            credits: payload.credits
+          });
+        }
+      }
+      
+      return {
+        studentId,
+        semesterId,
+        selectedCourses,
+        actualTotalCredits,
+        registrationStatus: 'draft'
+      };
+    });
+  }
+};
+```
+
+#### AcceptanceTDD テスト実装パターン
+
+```typescript
+describe('Story 2.1: 履修科目選択', () => {
+  // テストヘルパー関数
+  const whenCourseIsSelected = (command: SelectCourseCommand) =>
+    SelectCourseHandler.handle(command);
+    
+  const whenCourseSelectionFails = (command: SelectCourseCommand) =>
+    Effect.flip(SelectCourseHandler.handle(command));
+    
+  const getCurrentRegistrationState = (studentId: StudentId, semesterId: SemesterId) =>
+    GetStudentRegistrationHandler.handle({ studentId, semesterId });
+
+  it('AC1: 学生が履修可能な科目を選択できる', async () => {
+    // Given: 学生と対象科目
+    const studentId = StudentId.make("STUD001");
+    const semesterId = SemesterId.make("2024-S1");
+    const courseId = CourseId.make("CS101");
+    
+    // When: 科目選択を実行
+    const result = await Effect.runPromise(whenCourseIsSelected({
+      studentId,
+      semesterId, 
+      courseId,
+      credits: 4
+    }));
+    
+    // Then: 科目選択イベントが正常に生成される
+    expect(result.studentId).toBe(studentId);
+    expect(result.courseId).toBe(courseId);
+    expect(result.credits).toBe(4);
+  });
+
+  it('AC2: 単位上限を超過する場合はエラーとなる', async () => {
+    // Given: 既に20単位履修済みの学生
+    const studentId = StudentId.make("STUD002");
+    const semesterId = SemesterId.make("2024-S1");
+    
+    // 事前に20単位分の科目を選択
+    await Effect.runPromise(whenCourseIsSelected({
+      studentId, semesterId,
+      courseId: CourseId.make("CS201"),
+      credits: 20
+    }));
+    
+    // When: 追加で8単位の科目を選択（合計28単位 > 24単位制限）
+    const result = await Effect.runPromise(whenCourseSelectionFails({
+      studentId, semesterId,
+      courseId: CourseId.make("CS202"), 
+      credits: 8
+    }));
+    
+    // Then: 単位上限超過エラーが発生
+    expect(result).toBeInstanceOf(CreditLimitExceeded);
+    expect(result.message).toContain('履修上限を超過');
+  });
+});
+```
+
+### 主要な実装パターン
+
+#### 1. Effect.orElse による優雅なエラーハンドリング
+
+```typescript
+GetStudentRegistrationHandler.handle({ studentId, semesterId }).pipe(
+  Effect.orElse(() => {
+    // 履修登録未存在時の初期状態作成
+    const initialState = StudentRegistration.make(studentId, semesterId);
+    return Effect.succeed({ ...initialState, actualTotalCredits: 0 });
+  })
+);
+```
+
+#### 2. EventStore での streamId と aggregateId の分離
+
+```typescript
+// streamId: 永続化用の物理キー
+const streamId = `student-registration-${studentId.value}`;
+
+// aggregateId: ドメイン論理キー（イベント内で使用）
+const courseSelected = new CourseSelected({
+  studentId, // aggregateId として機能
+  // ... other fields
+});
+
+yield* EventStore.append(streamId, courseSelected, 'CourseSelected');
+```
+
+#### 3. vitestアサーションによるテスト品質向上
+
+```typescript
+expect(result.actualTotalCredits).toBe(24);
+expect(error).toBeInstanceOf(CreditLimitExceeded);
+expect(selectedCourses).toHaveLength(3);
+```
