@@ -3,8 +3,9 @@
 ## テスト品質基準（必須遵守）
 
 ### Effect.flipパターンによる失敗テスト
+
 ```typescript
-// ✅ 標準的な失敗テストパターン
+// 標準的な失敗テストパターン
 it("AC2: 同一学生・学期での重複セッション作成を防止する", () =>
   Effect.gen(function* () {
     // Given: 既存セッションが存在する状況
@@ -22,14 +23,6 @@ it("AC2: 同一学生・学期での重複セッション作成を防止する",
     .pipe(Effect.provide(TestLayer))
     .pipe(Effect.runPromise)
 );
-
-// ❌ 悪い例: try-catchやPromise.rejectの使用
-try {
-  await createRegistrationSession({ studentId, term });
-  expect.fail("Should have thrown error");
-} catch (error) {
-  // Effect-TSの型安全性を損なう
-}
 ```
 
 ### TestLayer構成の標準パターン
@@ -64,22 +57,19 @@ expect(events[0]._tag).toBe("RegistrationSessionCreated");
 ```
 
 ### 日本語テスト名の命名基準
+
 ```typescript
-// ✅ 良い例: ビジネス価値を表現する日本語名
+// ビジネス価値を表現する日本語名
 describe("ストーリー1: 履修登録セッション開始", () => {
   it("学生が新学期の履修計画を開始する", () => { ... });
   it("同一学生・学期での重複セッション作成を防止する", () => { ... });
   it("複数学生の並行履修計画をサポートする", () => { ... });
 });
 
-// ❌ 悪い例: 技術的詳細に焦点を当てた命名
-describe("RegistrationSession", () => {
-  it("should create session with valid input", () => { ... });
-  it("should throw error on duplicate", () => { ... });
-});
 ```
 
 ## テスト規約（プロトタイプフェーズ）
+
 1. **AcceptanceTDD優先**: 段階的受け入れテスト実装最優先
 2. **カスタムアサーション必須**: 複雑な検証ロジックは再利用可能な関数化
 3. **Effect.flip活用**: 失敗テストは必ずEffect.flipパターンを使用
@@ -90,6 +80,143 @@ describe("RegistrationSession", () => {
 8. **ROI重視**: 投資対効果を考慮したテスト実装判断
 9. **コメント活用**: Given-When-Thenの境界を明確にするコメント必須
 10. **ヘルパー関数**: 再利用可能なGiven/Thenヘルパー関数の積極的活用
+
+## テストコード改善パターン
+
+### テストヘルパー関数パターン
+
+テストコードの可読性と再利用性を高めるための標準的なヘルパー関数命名規則：
+
+```typescript
+// ✅ whenX: アクション実行を表現
+const whenCourseIsSelected = (command: any) => 
+  SelectCourseHandler.handle(command);
+
+const whenRegistrationIsSubmitted = (command: any) =>
+  SubmitRegistrationHandler.handle(command);
+
+// ✅ whenXFails: 失敗を期待するアクション
+const whenCourseSelectionFails = (command: any) =>
+  Effect.flip(SelectCourseHandler.handle(command));
+
+const whenSubmissionFails = (command: any) =>
+  Effect.flip(SubmitRegistrationHandler.handle(command));
+
+// ✅ getCurrentX: 状態取得を表現
+const getCurrentRegistrationState = (
+  studentId: StudentId,
+  semesterId: SemesterId
+) => GetStudentRegistrationHandler.handle({ studentId, semesterId });
+
+// ✅ thenX: 結果検証を表現
+const thenStudentHasSelectedCourses = (
+  state: any,
+  expectedCount: number
+) => {
+  expect(state.selectedCourses).toHaveLength(expectedCount);
+};
+
+const thenStudentHasTotalCredits = (
+  state: any,
+  expectedCredits: number
+) => {
+  expect(Number(state.totalCredits)).toBe(expectedCredits);
+};
+```
+
+### vitestアサーションへの移行パターン
+
+```typescript
+// ❌ 旧: 手動のEffect.fail
+it("テスト", () =>
+  Effect.gen(function* () {
+    const state = yield* getState();
+    if (state.courses.length !== 3) {
+      yield* Effect.fail(new Error(`Expected 3, got ${state.courses.length}`));
+    }
+    if (!(error instanceof DomainError)) {
+      yield* Effect.fail(new Error(`Expected DomainError, got ${error.constructor.name}`));
+    }
+  })
+);
+
+// ✅ 新: vitestアサーション
+it("テスト", () =>
+  Effect.gen(function* () {
+    const state = yield* getState();
+    expect(state.courses).toHaveLength(3);
+    expect(error).toBeInstanceOf(DomainError);
+  })
+);
+```
+
+### エラーテストの簡略化パターン
+
+```typescript
+// ❌ 旧: Effect.either + タグチェック
+const result = yield* Effect.either(
+  SelectCourseHandler.handle(command)
+);
+if (result._tag === "Left") {
+  const error = result.left;
+  if (!(error instanceof CreditLimitExceeded)) {
+    yield* Effect.fail(new Error("Unexpected error type"));
+  }
+}
+
+// ✅ 新: Effect.flip + vitestアサーション
+const error = yield* whenCourseSelectionFails(command);
+expect(error).toBeInstanceOf(CreditLimitExceeded);
+```
+
+### 実践例：リファクタリング前後の比較
+
+```typescript
+// ❌ リファクタリング前
+it("AC2: 単位数制限超過", () =>
+  Effect.gen(function* () {
+    // セットアップ
+    yield* SelectCourseHandler.handle(command1);
+    yield* SelectCourseHandler.handle(command2);
+    
+    // エラーチェック
+    const result = yield* Effect.either(
+      SelectCourseHandler.handle(overflowCommand)
+    );
+    
+    if (result._tag !== "Left") {
+      yield* Effect.fail(new Error("Expected error"));
+    }
+    
+    // 状態確認
+    const state = yield* GetStudentRegistrationHandler.handle({
+      studentId, semesterId
+    });
+    
+    if (state.selectedCourses.length !== 2) {
+      yield* Effect.fail(new Error("Course count mismatch"));
+    }
+  })
+);
+
+// ✅ リファクタリング後
+it("AC2: 単位数制限超過", () =>
+  Effect.gen(function* () {
+    // Given: 既存科目を選択
+    yield* whenCourseIsSelected(command1);
+    yield* whenCourseIsSelected(command2);
+    
+    // When: 制限超過する科目を選択
+    const error = yield* whenCourseSelectionFails(overflowCommand);
+    
+    // Then: エラーと状態を検証
+    expect(error).toBeInstanceOf(CreditLimitExceeded);
+    
+    const state = yield* getCurrentRegistrationState(studentId, semesterId);
+    thenStudentHasSelectedCourses(state, 2);
+  })
+);
+```
 
 ## アーキテクチャパターン
 

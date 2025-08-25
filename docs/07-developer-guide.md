@@ -24,7 +24,42 @@ application層のコマンドとクエリの受け入れテストを作成し、
 
 **命名規則**: 日本語ストーリー名、AC1/AC2プレフィックス、ビジネス価値重視
 
+### テストヘルパー関数の標準化
+
+テストコードの可読性と再利用性を高めるため、以下の命名規則を採用：
+
+```typescript
+// whenX: コマンド実行
+const whenCourseIsSelected = (command) => 
+  SelectCourseHandler.handle(command);
+
+// whenXFails: エラー期待
+const whenCourseSelectionFails = (command) =>
+  Effect.flip(SelectCourseHandler.handle(command));
+
+// getCurrentX: 状態取得
+const getCurrentRegistrationState = (studentId, semesterId) =>
+  GetStudentRegistrationHandler.handle({ studentId, semesterId });
+
+// thenX: 結果検証
+const thenStudentHasSelectedCourses = (state, count) => {
+  expect(state.selectedCourses).toHaveLength(count);
+};
+```
+
+### vitestアサーションの活用
+
+Effect.failによる手動エラーではなく、vitestの標準アサーションを使用：
+
+```typescript
+// vitestの標準アサーション
+expect(state.courses).toHaveLength(3);
+expect(error).toBeInstanceOf(CreditLimitExceeded);
+expect(state.totalCredits).toBe(24);
+```
+
 ## コード規約
+
 1. **Effect-TS優先**: Promiseではなく常にEffectを使用
 2. **Brand型活用**: プリミティブ値には必ずBrand型を適用
 3. **不変性**: すべてのドメインオブジェクトはイミュータブル
@@ -32,6 +67,7 @@ application層のコマンドとクエリの受け入れテストを作成し、
 5. **型安全**: `any`型の使用禁止、完全な型注釈
 
 ## AcceptanceTDD品質基準（必須）
+
 1. **段階的実装**: 受け入れ条件を1つずつ完了（一括実装禁止）
 2. **TDDサイクル**: 各受け入れ条件でRed→Green→Refactorサイクル実行
 3. **最小限実装**: 各モードで過剰実装回避、必要最小限の実装
