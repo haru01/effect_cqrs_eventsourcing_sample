@@ -2,7 +2,7 @@ import * as Effect from 'effect/Effect';
 import * as Schema from '@effect/schema/Schema';
 import { StudentId, CourseId, SemesterId, CreditUnit } from '@shared/index.js';
 import { CourseType } from '../../domain/value-objects/index.js';
-import { CourseSelected } from '../../domain/events/CourseSelected.js';
+import type { CourseSelected } from '../../domain/events/CourseSelected.js';
 import { CourseRegistrationDomainError } from '../../domain/errors/DomainErrors.js';
 import { StudentRegistration, SelectedCourse } from '../../domain/aggregates/StudentRegistration.js';
 import type { StudentRegistration as StudentRegistrationType } from '../../domain/aggregates/StudentRegistration.js';
@@ -42,28 +42,17 @@ export const SelectCourseHandler = {
         isRequired: command.isRequired
       };
 
-      // 3. 単位数制限チェックを含む科目追加処理
-      const updatedRegistration = yield* StudentRegistration.addCourseWithLimitCheck(
+      // 3. 単位数制限チェックを含む科目追加処理（集約とイベントを取得）
+      const result = yield* StudentRegistration.addCourseWithLimitCheck(
         registration,
         selectedCourse
       );
 
-      // 4. CourseSelected イベントを生成・発行
-      const event = CourseSelected.make({
-        studentId: command.studentId,
-        semesterId: command.semesterId,
-        courseId: command.courseId,
-        credits: command.credits,
-        courseType: command.courseType,
-        isRequired: command.isRequired,
-        timestamp: new Date(),
-        totalCredits: updatedRegistration.totalCredits
-      });
+      // 4. 更新された履修登録情報を保存（今後実装）
+      // yield* saveStudentRegistration(result.aggregate);
 
-      // 5. 更新された履修登録情報を保存（今後実装）
-      // yield* saveStudentRegistration(updatedRegistration);
-
-      return event;
+      // 5. 生成されたイベントを返す
+      return result.event;
     })
 } as const;
 

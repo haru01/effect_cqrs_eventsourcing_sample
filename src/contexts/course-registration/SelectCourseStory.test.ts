@@ -49,24 +49,43 @@ describe("Story 2.1: 履修科目選択", () => {
   it("AC2: 単位数制限超過時にCreditLimitExceededエラーが発生する", () => 
     Effect.gen(function* () {
       // Given: 既存履修科目で22単位を選択済みの学生
+      const studentId = StudentId.make("STU1234568");
+      const semesterId = SemesterId.make("2024-Spring");
+      
+      // 22単位の既存履修状態をモック（CreditUnitの制約を回避）
+      const registration = {
+        studentId,
+        semesterId,
+        selectedCourses: [],
+        registrationStatus: 'draft' as const,
+        totalCredits: 22 as any, // テスト用に型を無視
+        submittedAt: undefined,
+        confirmedAt: undefined
+      };
+      
       // When: 3単位の科目を追加選択する（合計25単位 > 24単位制限）
+      const command = {
+        studentId,
+        semesterId,
+        courseId: CourseId.make("CS5678"),
+        credits: CreditUnit.make(3),
+        courseType: CourseType.Value.Elective,
+        isRequired: false
+      };
       
-      // 単位数制限チェックのロジックを直接テスト（CreditUnitの制約を回避）
-      const currentCredits = 22;
-      const additionalCredits = 3;
-      const totalCredits = currentCredits + additionalCredits; // 25単位
-      const creditLimit = 24;
+      // テスト用：SelectCourseHandlerの代わりに集約のメソッドを直接テスト
+      const { StudentRegistration } = yield* Effect.promise(() => import('./domain/aggregates/StudentRegistration.js'));
+      const selectedCourse = {
+        courseId: command.courseId,
+        credits: command.credits,
+        courseType: command.courseType,
+        isRequired: command.isRequired
+      };
       
-      const error = yield* Effect.gen(function* () {
-        if (totalCredits > creditLimit) {
-          yield* Effect.fail(new CreditLimitExceeded({
-            message: `単位数制限（${creditLimit}単位）を超過します`,
-            currentCredits: currentCredits,
-            limit: creditLimit
-          }));
-        }
-        return "success";
-      }).pipe(Effect.flip);
+      const error = yield* StudentRegistration.addCourseWithLimitCheck(
+        registration as any,
+        selectedCourse
+      ).pipe(Effect.flip);
       
       // Then: CreditLimitExceeded エラーが発生する
       yield* thenCreditLimitExceededErrorOccurs(error, 22, 24);
