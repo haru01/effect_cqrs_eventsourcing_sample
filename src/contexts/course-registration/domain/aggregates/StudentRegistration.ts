@@ -58,14 +58,6 @@ export const StudentRegistrationModule = {
     submittedAt: undefined,
     confirmedAt: undefined
   }),
-  addCourse: (
-    registration: StudentRegistration,
-    course: SelectedCourse
-  ): StudentRegistration => ({
-    ...registration,
-    selectedCourses: [...registration.selectedCourses, course],
-    totalCredits: CreditUnit.add(registration.totalCredits, course.credits)
-  }),
   /**
    * 単位数制限チェック付き科目追加（イベント生成のみ）
    * 24単位制限を超過する場合はCreditLimitExceededエラーを発生
@@ -78,12 +70,12 @@ export const StudentRegistrationModule = {
     Effect.gen(function* () {
       // CourseSelectedイベントのインポートが必要
       const { CourseSelected } = yield* Effect.promise(() => import('../events/CourseSelected.js'));
-      
+
       // CreditUnitの制限を回避して直接数値で計算
       const currentCreditsValue = Number(registration.totalCredits);
       const additionalCreditsValue = Number(course.credits);
       const newTotalCreditsValue = currentCreditsValue + additionalCreditsValue;
-      
+
       if (newTotalCreditsValue > CREDIT_LIMIT) {
         yield* Effect.fail(new CreditLimitExceeded({
           message: `単位数制限（${CREDIT_LIMIT}単位）を超過します`,
@@ -91,7 +83,7 @@ export const StudentRegistrationModule = {
           limit: CREDIT_LIMIT
         }));
       }
-      
+
       // イベントを生成（集約の更新はしない - イベントソーシング原則）
       // totalCreditsはイベント適用後の値を計算して含める
       const event = CourseSelected.make({
@@ -104,22 +96,9 @@ export const StudentRegistrationModule = {
         timestamp: new Date(),
         totalCredits: CreditUnit.make(Math.min(newTotalCreditsValue, 10)) // CreditUnit制約対応
       });
-      
+
       return event;
     }),
-  removeCourse: (
-    registration: StudentRegistration,
-    courseId: CourseId
-  ): StudentRegistration => {
-    const courseToRemove = registration.selectedCourses.find((c: SelectedCourse) => c.courseId === courseId);
-    if (!courseToRemove) return registration;
-
-    return {
-      ...registration,
-      selectedCourses: registration.selectedCourses.filter((c: SelectedCourse) => c.courseId !== courseId),
-      totalCredits: CreditUnit.subtract(registration.totalCredits, courseToRemove.credits)
-    };
-  }
 } as const;
 
 export { StudentRegistrationModule as StudentRegistration, SelectedCourseModule as SelectedCourse };
