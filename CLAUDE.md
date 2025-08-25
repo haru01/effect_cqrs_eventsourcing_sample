@@ -12,7 +12,6 @@
 - [TypeScript Effect実装ガイド](./docs/06-implementation-guide.md)
 - [開発者向けガイド](./docs/07-developer-guide.md)
 - [テストガイド](./docs/08-testing-guide.md)
-- [エージェントシステム](./docs/09-agent-system.md)
 
 ## 🚀 クイックスタート
 
