@@ -1,9 +1,9 @@
 import * as Effect from 'effect/Effect';
-import { StudentId, SemesterId, CreditUnit } from '../../../../shared-kernel/index.js';
+import { StudentId, SemesterId } from '../../../../shared-kernel/index.js';
 import { CoursesSelected } from '../../domain/events/RegistrationEvents.js';
 import { SelectCourses } from '../../domain/commands/RegistrationCommands.js';
 import { CourseRegistrationDomainError } from '../../domain/errors/DomainErrors.js';
-import { StudentRegistration, CourseSelection } from '../../domain/aggregates/StudentRegistration.js';
+import { StudentRegistration } from '../../domain/aggregates/StudentRegistration.js';
 import { EventStore, EventStoreError } from '../../../../infrastructure/event-store/index.js';
 import { GetStudentRegistrationHandler, StudentRegistrationWithActualCredits } from '../query-handlers/GetStudentRegistrationHandler.js';
 
@@ -20,38 +20,16 @@ export const SelectCoursesHandler = {
         command.semesterId
       );
 
-      // 2. ドメインロジックによる選択科目検証
-      const actualCurrentCredits = registration.actualTotalCredits || 0;
-      const courseSelections: CourseSelection[] = command.courseSelections.map(selection => ({
-        courseId: selection.courseId,
-        credits: selection.credits
-      }));
-      
-      const validatedSelections = yield* StudentRegistration.selectCourses(
+      // 2. ドメインによるコース選択処理（集約に対する操作）
+      const event = yield* StudentRegistration.selectCourses(
         registration,
-        courseSelections,
-        actualCurrentCredits
-      );
-
-      // 3. CoursesSelected イベント生成
-      const additionalCredits = validatedSelections.reduce(
-        (sum, selection) => sum + Number(selection.credits), 
-        0
-      );
-      
-      const event: CoursesSelected = {
-        type: "CoursesSelected",
-        studentId: command.studentId,
-        semesterId: command.semesterId,
-        courseSelections: validatedSelections.map(selection => ({
+        command.courseSelections.map(selection => ({
           courseId: selection.courseId,
           credits: selection.credits
-        })),
-        totalCreditsAdded: CreditUnit.make(Math.min(additionalCredits, 10)),
-        timestamp: new Date()
-      };
+        }))
+      );
 
-      // 4. イベントストアへの保存
+      // 3. イベントストアへの保存
       const eventStore = yield* EventStore;
       const streamId = `student-registration-${command.studentId}-${command.semesterId}`;
       const domainEvent = {
@@ -60,7 +38,7 @@ export const SelectCoursesHandler = {
       };
       yield* eventStore.append(streamId, [domainEvent]);
 
-      // 5. 生成されたイベントを返す
+      // 4. 生成されたイベントを返す
       return event;
     })
 } as const;

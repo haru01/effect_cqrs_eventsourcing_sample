@@ -3,6 +3,7 @@ import * as Effect from 'effect/Effect';
 import { StudentId, CourseId, SemesterId, CreditUnit } from '../../../../shared-kernel/index.js';
 import { RegistrationStatus, CourseType } from '../value-objects/index.js';
 import { CreditLimitExceeded } from '../errors/DomainErrors.js';
+import { CoursesSelected } from '../events/RegistrationEvents.js';
 
 /**
  * 選択科目スキーマ
@@ -51,6 +52,35 @@ export interface CourseSelection {
   readonly credits: CreditUnit;
 }
 
+/**
+ * 追加単位数を計算し、制限超過時はエラーを返す
+ */
+const validateAdditionalCredits = (
+  registration: StudentRegistration,
+  courseSelections: readonly CourseSelection[]
+): Effect.Effect<number, CreditLimitExceeded> => {
+      // 現在の履修済み単位数を計算
+    const currentCredits = registration.selectedCourses.reduce(
+      (sum, course) => sum + Number(course.credits),
+      0
+    );
+  const additionalCredits = courseSelections.reduce(
+    (sum, selection) => sum + Number(selection.credits),
+    0
+  );
+
+  if (currentCredits + additionalCredits > CREDIT_LIMIT) {
+    return Effect.fail(new CreditLimitExceeded({
+      message: `単位数制限（${CREDIT_LIMIT}単位）を超過します。選択科目合計: ${additionalCredits}単位、制限まで残り: ${CREDIT_LIMIT - currentCredits}単位`,
+      currentCredits,
+      limit: CREDIT_LIMIT,
+      attemptedCredits: additionalCredits
+    }));
+  }
+
+  return Effect.succeed(additionalCredits);
+};
+
 export const StudentRegistrationModule = {
   Schema: StudentRegistrationSchema,
   make: (
@@ -67,57 +97,25 @@ export const StudentRegistrationModule = {
   }),
 
   /**
-   * コース選択のドメインロジック
-   * 重複チェックと単位数制限チェックを含む
+   * 集約に対してコース選択を実行し、イベントを生成
    */
   selectCourses: (
     registration: StudentRegistration,
-    courseSelections: readonly CourseSelection[],
-    actualCurrentCredits: number
-  ): Effect.Effect<CourseSelection[], CreditLimitExceeded> =>
+    courseSelections: readonly CourseSelection[]
+  ): Effect.Effect<CoursesSelected, CreditLimitExceeded> =>
     Effect.gen(function* () {
-      // 1. 選択科目の重複チェック
-      const courseIds = courseSelections.map(selection => selection.courseId);
-      const uniqueCourseIds = [...new Set(courseIds)];
-      if (courseIds.length !== uniqueCourseIds.length) {
-        yield* Effect.fail(new CreditLimitExceeded({
-          message: "同一科目が複数選択されています",
-          currentCredits: actualCurrentCredits,
-          limit: CREDIT_LIMIT
-        }));
-      }
-
-      // 2. 既選択科目との重複チェック
-      const existingCourseIds = registration.selectedCourses?.map(course => course.courseId) || [];
-      const duplicateCourseIds = courseIds.filter(courseId =>
-        existingCourseIds.includes(courseId)
-      );
-      if (duplicateCourseIds.length > 0) {
-        yield* Effect.fail(new CreditLimitExceeded({
-          message: `既に選択済みの科目が含まれています: ${duplicateCourseIds.join(', ')}`,
-          currentCredits: actualCurrentCredits,
-          limit: CREDIT_LIMIT
-        }));
-      }
-
-      // 3. 単位数制限チェック
-      const additionalCredits = courseSelections.reduce(
-        (sum, selection) => sum + Number(selection.credits),
-        0
-      );
-      const newTotalCredits = actualCurrentCredits + additionalCredits;
-
-      if (newTotalCredits > CREDIT_LIMIT) {
-        yield* Effect.fail(new CreditLimitExceeded({
-          message: `単位数制限（${CREDIT_LIMIT}単位）を超過します。選択科目合計: ${additionalCredits}単位、制限まで残り: ${CREDIT_LIMIT - actualCurrentCredits}単位`,
-          currentCredits: actualCurrentCredits,
-          limit: CREDIT_LIMIT,
-          attemptedCredits: additionalCredits
-        }));
-      }
-
-      // 4. 検証に成功した場合は選択科目を返す
-      return courseSelections as CourseSelection[];
+      const additionalCredits = yield* validateAdditionalCredits(registration, courseSelections);
+      return {
+        type: "CoursesSelected" as const,
+        studentId: registration.studentId,
+        semesterId: registration.semesterId,
+        courseSelections: courseSelections.map(selection => ({
+          courseId: selection.courseId,
+          credits: selection.credits
+        })),
+        totalCreditsAdded: CreditUnit.make(Math.min(additionalCredits, 10)),
+        timestamp: new Date()
+      };
     })
 } as const;
 
