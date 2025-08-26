@@ -38,7 +38,7 @@ describe('Story 2.1: 複数履修科目選択', () => {
         expect(event.studentId).toBe(studentId);
         expect(event.semesterId).toBe(semesterId);
         expect(event.courseSelections).toHaveLength(3);
-        expect(Number(event.totalCreditsAdded)).toBe(7); // 2+3+2=7
+        expect(event.totalCreditsAdded).toBe(7); // 2+3+2=7
         expect(event.timestamp).toBeInstanceOf(Date);
 
         // And: 選択された科目情報が正しく記録される
@@ -83,7 +83,7 @@ describe('Story 2.1: 複数履修科目選択', () => {
       // When/Then: 適切に処理される（0単位で成功）
       const program = Effect.gen(function* () {
         const event = yield* SelectCoursesHandler.handle(command);
-        expect(Number(event.totalCreditsAdded)).toBe(0);
+        expect(event.totalCreditsAdded).toBe(0);
         return event;
       });
 
@@ -180,7 +180,7 @@ describe('Story 2.1: 複数履修科目選択', () => {
       const program = Effect.gen(function* () {
         const event = yield* SelectCoursesHandler.handle(command);
         expect(event.type).toBe("CoursesSelected");
-        expect(Number(event.totalCreditsAdded)).toBe(10); // CreditUnit制限により10に制限される
+        expect(event.totalCreditsAdded).toBe(24); // 実際の単位数が正しく記録される
         return event;
       });
 

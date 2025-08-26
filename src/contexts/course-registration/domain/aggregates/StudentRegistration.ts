@@ -113,7 +113,7 @@ export const StudentRegistrationModule = {
           courseId: selection.courseId,
           credits: selection.credits
         })),
-        totalCreditsAdded: CreditUnit.make(Math.min(additionalCredits, 10)),
+        totalCreditsAdded: additionalCredits,
         timestamp: new Date()
       };
     })
