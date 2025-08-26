@@ -3,6 +3,7 @@ import * as Effect from 'effect/Effect';
 import { StudentId, CourseId, SemesterId, CreditUnit } from '../../shared-kernel/index.js';
 import { SelectCoursesHandler } from './application/command-handlers/SelectCoursesHandler.js';
 import { SelectCourses } from './domain/commands/RegistrationCommands.js';
+import { GetStudentRegistrationHandler, GetStudentRegistrationQuery, NotFoundStudentRegistration } from './application/query-handlers/GetStudentRegistrationHandler.js';
 import { TestLayer } from './infrastructure/TestLayer.js';
 
 /**
@@ -47,6 +48,16 @@ describe('Story 2.1: 複数履修科目選択', () => {
         expect(Number(event.courseSelections[1].credits)).toBe(3);
         expect(event.courseSelections[2].courseId).toBe(CourseId.make("ENG345"));
         expect(Number(event.courseSelections[2].credits)).toBe(2);
+
+        // And: プロジェクションでStudentRegistrationが復元できる
+        const query: GetStudentRegistrationQuery = { studentId, semesterId };
+        const registration = yield* GetStudentRegistrationHandler.handle(query);
+        
+        expect(registration.studentId).toBe(studentId);
+        expect(registration.semesterId).toBe(semesterId);
+        expect(registration.selectedCourses).toHaveLength(3);
+        expect(registration.actualTotalCredits).toBe(7); // 実際の累積単位数
+        expect(Number(registration.totalCredits)).toBe(7); // CreditUnit制限内での値
 
         return event;
       });
@@ -119,6 +130,16 @@ describe('Story 2.1: 複数履修科目選択', () => {
           expect(error.currentCredits).toBe(0); // 現在の履修単位数
           expect(error.limit).toBe(24); // 単位制限
           expect(error.attemptedCredits).toBe(28); // 選択しようとした単位数
+        }
+        
+        // And: プロジェクションでStudentRegistrationが復元できない（ストリームが存在しない）
+        const query: GetStudentRegistrationQuery = { studentId, semesterId };
+        const projectionError = yield* Effect.flip(GetStudentRegistrationHandler.handle(query));
+        
+        expect(projectionError).toBeInstanceOf(NotFoundStudentRegistration);
+        if (projectionError instanceof NotFoundStudentRegistration) {
+          expect(projectionError.studentId).toBe(studentId);
+          expect(projectionError.semesterId).toBe(semesterId);
         }
         
         return error;
