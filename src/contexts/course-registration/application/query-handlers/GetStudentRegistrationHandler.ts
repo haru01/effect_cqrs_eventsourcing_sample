@@ -1,10 +1,11 @@
 import * as Effect from 'effect/Effect';
 import * as Schema from '@effect/schema/Schema';
-import { StudentId, SemesterId, CreditUnit } from '@shared/index.js';
+import { StudentId, SemesterId, CreditUnit } from '../../../../shared-kernel/index.js';
+import { CourseType } from '../../domain/value-objects/index.js';
 import { EventStore } from '../../../../infrastructure/event-store/index.js';
 import { StudentRegistration } from '../../domain/aggregates/StudentRegistration.js';
 import type { StudentRegistration as StudentRegistrationType } from '../../domain/aggregates/StudentRegistration.js';
-import type { CourseSelected } from '../../domain/events/CourseSelected.js';
+import type { CoursesSelected } from '../../domain/events/RegistrationEvents.js';
 
 /**
  * 学生履修登録が見つからない場合のエラー
@@ -66,25 +67,27 @@ export const GetStudentRegistrationHandler = {
       let totalCreditsAccumulator = 0;
       
       for (const event of events.right) {
-        if (event.type === 'CourseSelected') {
-          const courseSelectedEvent = event as CourseSelected & { type: string; aggregateId?: string; version?: number };
+        if (event.type === 'CoursesSelected') {
+          const coursesSelectedEvent = event as CoursesSelected & { type: string; aggregateId?: string; version?: number };
           
           // イベントから選択科目情報を抽出して状態を更新
-          const selectedCourse = {
-            courseId: courseSelectedEvent.courseId,
-            credits: courseSelectedEvent.credits,
-            courseType: courseSelectedEvent.courseType,
-            isRequired: courseSelectedEvent.isRequired
-          };
+          for (const courseSelection of coursesSelectedEvent.courseSelections) {
+            const selectedCourse = {
+              courseId: courseSelection.courseId,
+              credits: courseSelection.credits,
+              courseType: CourseType.make(CourseType.Value.Elective), // デフォルト値
+              isRequired: false // デフォルト値
+            };
           
-          // 状態を直接更新（プロジェクションでは制限チェックを行わない）
-          registration = {
-            ...registration,
-            selectedCourses: [...registration.selectedCourses, selectedCourse],
-            totalCredits: CreditUnit.make(Math.min(totalCreditsAccumulator + Number(courseSelectedEvent.credits), 10))
-          };
-          
-          totalCreditsAccumulator += Number(courseSelectedEvent.credits);
+            // 状態を直接更新（プロジェクションでは制限チェックを行わない）
+            registration = {
+              ...registration,
+              selectedCourses: [...registration.selectedCourses, selectedCourse],
+              totalCredits: CreditUnit.make(Math.min(totalCreditsAccumulator + Number(courseSelection.credits), 10))
+            };
+            
+            totalCreditsAccumulator += Number(courseSelection.credits);
+          }
           version = event.version || version + 1;
         }
       }

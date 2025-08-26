@@ -21,6 +21,7 @@ export class CreditLimitExceeded extends Data.TaggedError("CreditLimitExceeded")
   readonly message: string;
   readonly currentCredits: number;
   readonly limit: number;
+  readonly attemptedCredits?: number;
 }> {}
 
 export class PrerequisiteNotMet extends Data.TaggedError("PrerequisiteNotMet")<{

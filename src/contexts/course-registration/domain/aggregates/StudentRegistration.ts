@@ -1,9 +1,6 @@
 import * as Schema from '@effect/schema/Schema';
-import * as Effect from 'effect/Effect';
-import { StudentId, CourseId, SemesterId, CreditUnit } from '@shared/index.js';
+import { StudentId, CourseId, SemesterId, CreditUnit } from '../../../../shared-kernel/index.js';
 import { RegistrationStatus, CourseType } from '../value-objects/index.js';
-import { CreditLimitExceeded } from '../errors/DomainErrors.js';
-import type { CourseSelected } from '../events/CourseSelected.js';
 
 /**
  * 選択科目スキーマ
@@ -42,7 +39,6 @@ export const SelectedCourseModule = {
  * 単位数制限上限（24単位）
  * CreditUnitは10単位制限があるため、比較用に直接値を使用
  */
-const CREDIT_LIMIT = 24;
 
 export const StudentRegistrationModule = {
   Schema: StudentRegistrationSchema,
@@ -58,47 +54,6 @@ export const StudentRegistrationModule = {
     submittedAt: undefined,
     confirmedAt: undefined
   }),
-  /**
-   * 単位数制限チェック付き科目追加（イベント生成のみ）
-   * 24単位制限を超過する場合はCreditLimitExceededエラーを発生
-   * 成功時はCourseSelectedイベントのみを返す（集約の更新はイベント適用時に行う）
-   */
-  addCourseWithLimitCheck: (
-    registration: StudentRegistration,
-    course: SelectedCourse
-  ): Effect.Effect<CourseSelected, CreditLimitExceeded> =>
-    Effect.gen(function* () {
-      // CourseSelectedイベントのインポートが必要
-      const { CourseSelected } = yield* Effect.promise(() => import('../events/CourseSelected.js'));
-
-      // CreditUnitの制限を回避して直接数値で計算
-      const currentCreditsValue = Number(registration.totalCredits);
-      const additionalCreditsValue = Number(course.credits);
-      const newTotalCreditsValue = currentCreditsValue + additionalCreditsValue;
-
-      if (newTotalCreditsValue > CREDIT_LIMIT) {
-        yield* Effect.fail(new CreditLimitExceeded({
-          message: `単位数制限（${CREDIT_LIMIT}単位）を超過します`,
-          currentCredits: currentCreditsValue,
-          limit: CREDIT_LIMIT
-        }));
-      }
-
-      // イベントを生成（集約の更新はしない - イベントソーシング原則）
-      // totalCreditsはイベント適用後の値を計算して含める
-      const event = CourseSelected.make({
-        studentId: registration.studentId,
-        semesterId: registration.semesterId,
-        courseId: course.courseId,
-        credits: course.credits,
-        courseType: course.courseType,
-        isRequired: course.isRequired,
-        timestamp: new Date(),
-        totalCredits: CreditUnit.make(Math.min(newTotalCreditsValue, 10)) // CreditUnit制約対応
-      });
-
-      return event;
-    }),
 } as const;
 
 export { StudentRegistrationModule as StudentRegistration, SelectedCourseModule as SelectedCourse };
