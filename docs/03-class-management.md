@@ -11,12 +11,21 @@
   - `InstructorNotAssigned` / 教員が割り当てられていない
 
 ### 📌 AttendanceRecorded / 出席記録された
-学生の出席状況（出席・欠席・遅刻・公欠）が正式に記録されたことを表すイベント。成績評価の基礎データとなる重要な記録。
-- **トリガーコマンド**: `RecordAttendance` / 出席を記録する
+学生の出席状況（出席・欠席・遅刻・公欠）が正式に記録されたことを表すイベント。成績評価の基礎データとなる重要な記録。複数科目履修者の動的な出席管理に対応。
+- **トリガーコマンド**: `RecordAttendance` / 出席を記録する  
 - **発生しうるドメインエラー**:
   - `ClassNotStarted` / 授業が開始されていない
   - `StudentNotEnrolled` / 履修していない学生
   - `AttendanceAlreadyRecorded` / 既に出席記録済み
+
+### 📌 MultipleAttendanceRecorded / 複数学生出席記録された
+複数の学生の出席状況を一括で記録したことを表すイベント。効率的な出席管理と複数科目横断での整合性保証を実現。
+- **トリガーコマンド**: `RecordMultipleAttendance` / 複数出席を記録する
+- **発生しうるドメインエラー**:
+  - `ClassNotStarted` / 授業が開始されていない
+  - `SomeStudentsNotEnrolled` / 一部学生が履修していない
+  - `DuplicateAttendanceRecords` / 重複した出席記録
+  - `AttendanceRecordingConflict` / 出席記録の競合状態
 
 ### 📌 TaskAssigned / 課題出題された
 授業において新しい課題が正式に出題されたことを表すイベント。課題の内容、提出期限、配点が確定し、学生への通知が可能となる。
@@ -51,7 +60,7 @@ ClassSession {
   semesterId: SemesterId           // 学期識別子
   instructorId: InstructorId       // 教員識別子
   sessionDate: Date                // 授業日
-  enrolledStudents: StudentId[]    // 履修学生リスト
+  enrolledStudents: StudentId[]    // 履修学生リスト（複数科目選択により動的に変動）
   attendanceRecords: AttendanceRecord[]  // 出席記録
   assignments: AssignmentId[]      // 課題リスト（このコンテキスト固有）
   sessionStatus: SessionStatus     // 授業ステータス（このコンテキスト固有）

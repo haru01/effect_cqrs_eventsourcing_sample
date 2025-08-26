@@ -9,14 +9,16 @@
   - `PreviousSemesterNotEnded` / 前学期が終了していない
   - `RegistrationPeriodAlreadyStarted` / 既に登録期間が開始済み
 
-### 📌 CourseSelected / 履修科目選択された
-学生が特定の科目を履修対象として選択したことを表すイベント。時間割や単位数の制約をクリアした正当な選択を記録。
-- **トリガーコマンド**: `SelectCourse` / 履修科目を選択する
+### 📌 CoursesSelected / 履修科目群選択された
+学生が複数の科目を一括して履修対象として選択したことを表すイベント。時間割や単位数の制約をクリアした複数科目の選択を記録。
+- **トリガーコマンド**: `SelectCourses` / 複数履修科目を選択する
 - **発生しうるドメインエラー**:
   - `OutsideRegistrationPeriod` / 履修登録期間外
-  - `ScheduleConflict` / 時間割が重複している
-  - `CreditLimitExceeded` / 履修上限を超過
-  - `PrerequisiteNotMet` / 前提科目未履修
+  - `ScheduleConflictDetected` / 科目間で時間割が重複
+  - `CreditLimitExceeded` / 合計単位数が履修上限を超過
+  - `PrerequisiteNotMet` / いずれかの科目で前提科目未履修
+  - `DuplicateCoursesInSelection` / 同一科目の重複選択
+  - `SomeCoursesCapacityFull` / 一部科目で定員満了
 
 ### 📌 RegistrationSubmitted / 履修登録提出された
 学生が選択した科目セットを正式に履修登録として提出したことを表すイベント。必修科目や最低単位数の要件を満たした状態での提出を記録。
@@ -96,17 +98,17 @@ RegistrationPeriod {
 
 ## 実装例
 
-### Story 2.1: 履修科目選択の実装
+### Story 2.1: 複数履修科目選択の実装
 
 #### Pure Event Sourcing アプローチ
 
-本システムでは Pure Event Sourcing を採用しており、集約は状態を保持せずイベントのみを生成します。
+本システムでは Pure Event Sourcing を採用しており、集約は状態を保持せずイベントのみを生成します。複数科目の一括選択に対応し、科目間の整合性チェックも実装します。
 
 ```typescript
-// SelectCourseHandler.ts - コマンドハンドラー実装例
-export const SelectCourseHandler = {
-  handle: ({ studentId, semesterId, courseId, credits }: SelectCourseCommand): 
-    Effect.Effect<CourseSelected, CreditLimitExceeded> => {
+// SelectCoursesHandler.ts - 複数科目選択コマンドハンドラー実装例
+export const SelectCoursesHandler = {
+  handle: ({ studentId, semesterId, courseSelections }: SelectCoursesCommand): 
+    Effect.Effect<CoursesSelected, ScheduleConflictDetected | CreditLimitExceeded | DuplicateCoursesInSelection | CourseAlreadySelected> => {
     
     return Effect.gen(function* () {
       // 現在の履修状態を取得（Effect.orElse パターン使用）
@@ -119,36 +121,71 @@ export const SelectCourseHandler = {
           const initialState = StudentRegistration.make(studentId, semesterId);
           return Effect.succeed({
             ...initialState,
-            actualTotalCredits: 0
+            actualTotalCredits: 0,
+            selectedCourses: []
           });
         })
       );
 
-      // ビジネスルール: 単位上限チェック（24単位）
-      const newTotalCredits = currentState.actualTotalCredits + credits;
+      // ビジネスルール1: 重複チェック
+      const duplicates = courseSelections.filter(selection => 
+        courseSelections.filter(s => s.courseId.value === selection.courseId.value).length > 1
+      );
+      if (duplicates.length > 0) {
+        return yield* Effect.fail(new DuplicateCoursesInSelection(
+          `同一科目の重複選択: ${duplicates.map(d => d.courseId.value).join(', ')}`
+        ));
+      }
+
+      // ビジネスルール2: 既選択科目との重複チェック
+      const alreadySelected = courseSelections.filter(selection =>
+        currentState.selectedCourses.some(existing => existing.courseId.value === selection.courseId.value)
+      );
+      if (alreadySelected.length > 0) {
+        return yield* Effect.fail(new CourseAlreadySelected(
+          `既に選択済みの科目: ${alreadySelected.map(s => s.courseId.value).join(', ')}`
+        ));
+      }
+
+      // ビジネスルール3: 単位上限チェック（24単位）
+      const totalNewCredits = courseSelections.reduce((sum, selection) => sum + selection.credits, 0);
+      const newTotalCredits = currentState.actualTotalCredits + totalNewCredits;
       if (newTotalCredits > 24) {
         return yield* Effect.fail(new CreditLimitExceeded(
-          `履修上限を超過: 現在${currentState.actualTotalCredits}単位 + ${credits}単位 = ${newTotalCredits}単位 > 24単位`
+          `履修上限を超過: 現在${currentState.actualTotalCredits}単位 + 追加${totalNewCredits}単位 = ${newTotalCredits}単位 > 24単位`
+        ));
+      }
+
+      // ビジネスルール4: 時間割重複チェック（簡略化実装例）
+      const scheduleConflicts = yield* checkScheduleConflicts(courseSelections);
+      if (scheduleConflicts.length > 0) {
+        return yield* Effect.fail(new ScheduleConflictDetected(
+          `時間割重複: ${scheduleConflicts.map(c => `${c.course1} と ${c.course2}`).join(', ')}`
         ));
       }
 
       // イベント生成（状態は保持しない）
-      const courseSelected = new CourseSelected({
+      const coursesSelected = new CoursesSelected({
         studentId,
         semesterId,
-        courseId,
-        credits,
+        courseSelections: courseSelections.map(selection => ({
+          courseId: selection.courseId,
+          credits: selection.credits,
+          courseType: selection.courseType,
+          isRequired: selection.isRequired
+        })),
+        totalCreditsAdded: totalNewCredits,
         occurredAt: new Date()
       });
 
       // EventStore への永続化
       yield* EventStore.append(
         `student-registration-${studentId.value}`,
-        courseSelected,
-        'CourseSelected'
+        coursesSelected,
+        'CoursesSelected'
       );
 
-      return courseSelected;
+      return coursesSelected;
     });
   }
 };
@@ -175,12 +212,17 @@ export const GetStudentRegistrationHandler = {
       const selectedCourses: any[] = [];
       
       for (const event of events) {
-        if (event.type === 'CourseSelected') {
-          const payload = event.payload as CourseSelected;
-          actualTotalCredits += payload.credits;
-          selectedCourses.push({
-            courseId: payload.courseId,
-            credits: payload.credits
+        if (event.type === 'CoursesSelected') {
+          // 複数科目選択
+          const payload = event.payload as CoursesSelected;
+          payload.courseSelections.forEach(selection => {
+            actualTotalCredits += selection.credits;
+            selectedCourses.push({
+              courseId: selection.courseId,
+              credits: selection.credits,
+              courseType: selection.courseType,
+              isRequired: selection.isRequired
+            });
           });
         }
       }
@@ -200,59 +242,103 @@ export const GetStudentRegistrationHandler = {
 #### AcceptanceTDD テスト実装パターン
 
 ```typescript
-describe('Story 2.1: 履修科目選択', () => {
+describe('Story 2.1: 複数履修科目選択', () => {
   // テストヘルパー関数
-  const whenCourseIsSelected = (command: SelectCourseCommand) =>
-    SelectCourseHandler.handle(command);
+  const whenCoursesAreSelected = (command: SelectCoursesCommand) =>
+    SelectCoursesHandler.handle(command);
     
-  const whenCourseSelectionFails = (command: SelectCourseCommand) =>
-    Effect.flip(SelectCourseHandler.handle(command));
+  const whenCourseSelectionFails = (command: SelectCoursesCommand) =>
+    Effect.flip(SelectCoursesHandler.handle(command));
     
   const getCurrentRegistrationState = (studentId: StudentId, semesterId: SemesterId) =>
     GetStudentRegistrationHandler.handle({ studentId, semesterId });
 
-  it('AC1: 学生が履修可能な科目を選択できる', async () => {
-    // Given: 学生と対象科目
+  it('AC1: 学生が複数の履修可能な科目を一括選択できる', async () => {
+    // Given: 学生と複数の対象科目
     const studentId = StudentId.make("STUD001");
     const semesterId = SemesterId.make("2024-S1");
-    const courseId = CourseId.make("CS101");
+    const courseSelections = [
+      { courseId: CourseId.make("CS101"), credits: 4, courseType: "required", isRequired: true },
+      { courseId: CourseId.make("MATH201"), credits: 3, courseType: "elective", isRequired: false },
+      { courseId: CourseId.make("PHYS101"), credits: 2, courseType: "general", isRequired: false }
+    ];
     
-    // When: 科目選択を実行
-    const result = await Effect.runPromise(whenCourseIsSelected({
+    // When: 複数科目選択を実行
+    const result = await Effect.runPromise(whenCoursesAreSelected({
       studentId,
       semesterId, 
-      courseId,
-      credits: 4
+      courseSelections
     }));
     
-    // Then: 科目選択イベントが正常に生成される
+    // Then: 複数科目選択イベントが正常に生成される
     expect(result.studentId).toBe(studentId);
-    expect(result.courseId).toBe(courseId);
-    expect(result.credits).toBe(4);
+    expect(result.courseSelections).toHaveLength(3);
+    expect(result.totalCreditsAdded).toBe(9);
   });
 
-  it('AC2: 単位上限を超過する場合はエラーとなる', async () => {
-    // Given: 既に20単位履修済みの学生
+  it('AC2: 同一科目の重複選択はエラーとなる', async () => {
+    // Given: 重複する科目を含む選択リスト
     const studentId = StudentId.make("STUD002");
     const semesterId = SemesterId.make("2024-S1");
+    const courseSelections = [
+      { courseId: CourseId.make("CS101"), credits: 4, courseType: "required", isRequired: true },
+      { courseId: CourseId.make("CS101"), credits: 4, courseType: "required", isRequired: true }  // 重複
+    ];
     
-    // 事前に20単位分の科目を選択
-    await Effect.runPromise(whenCourseIsSelected({
-      studentId, semesterId,
-      courseId: CourseId.make("CS201"),
-      credits: 20
+    // When: 重複科目選択を実行
+    const result = await Effect.runPromise(whenCourseSelectionFails({
+      studentId, semesterId, courseSelections
     }));
     
-    // When: 追加で8単位の科目を選択（合計28単位 > 24単位制限）
-    const result = await Effect.runPromise(whenCourseSelectionFails({
+    // Then: 重複選択エラーが発生
+    expect(result).toBeInstanceOf(DuplicateCoursesInSelection);
+    expect(result.message).toContain('同一科目の重複選択');
+  });
+
+  it('AC3: 単位上限を超過する複数科目選択はエラーとなる', async () => {
+    // Given: 既に履修済みの学生と大量単位の科目選択
+    const studentId = StudentId.make("STUD003");
+    const semesterId = SemesterId.make("2024-S1");
+    
+    // 事前に15単位分の科目を選択
+    await Effect.runPromise(whenCoursesAreSelected({
       studentId, semesterId,
-      courseId: CourseId.make("CS202"), 
-      credits: 8
+      courseSelections: [
+        { courseId: CourseId.make("CS201"), credits: 15, courseType: "required", isRequired: true }
+      ]
+    }));
+    
+    // When: 追加で12単位の複数科目を選択（合計27単位 > 24単位制限）
+    const courseSelections = [
+      { courseId: CourseId.make("CS301"), credits: 6, courseType: "elective", isRequired: false },
+      { courseId: CourseId.make("CS302"), credits: 6, courseType: "elective", isRequired: false }
+    ];
+    const result = await Effect.runPromise(whenCourseSelectionFails({
+      studentId, semesterId, courseSelections
     }));
     
     // Then: 単位上限超過エラーが発生
     expect(result).toBeInstanceOf(CreditLimitExceeded);
     expect(result.message).toContain('履修上限を超過');
+  });
+
+  it('AC4: 時間割重複のある複数科目選択はエラーとなる', async () => {
+    // Given: 時間割が重複する科目群
+    const studentId = StudentId.make("STUD004");
+    const semesterId = SemesterId.make("2024-S1");
+    const courseSelections = [
+      { courseId: CourseId.make("CS401"), credits: 3, courseType: "elective", isRequired: false },
+      { courseId: CourseId.make("MATH401"), credits: 3, courseType: "elective", isRequired: false }  // CS401と同時間帯
+    ];
+    
+    // When: 時間割重複のある科目選択を実行
+    const result = await Effect.runPromise(whenCourseSelectionFails({
+      studentId, semesterId, courseSelections
+    }));
+    
+    // Then: 時間割重複エラーが発生
+    expect(result).toBeInstanceOf(ScheduleConflictDetected);
+    expect(result.message).toContain('時間割重複');
   });
 });
 ```

@@ -10,6 +10,16 @@
   - `StudentNotEnrolled` / 履修していない学生
   - `InsufficientGradingPermission` / 成績入力権限なし
 
+### 📌 MultipleGradesEntered / 複数成績一括入力された
+教員が複数学生の成績を一括で入力したことを表すイベント。複数科目履修による効率的な成績管理を実現。
+- **トリガーコマンド**: `EnterMultipleGrades` / 複数成績を一括入力する
+- **発生しうるドメインエラー**:
+  - `OutsideGradingPeriod` / 成績入力期間外
+  - `SomeStudentsNotEnrolled` / 一部学生が履修していない
+  - `InsufficientGradingPermission` / 成績入力権限なし
+  - `DuplicateGradeEntries` / 重複した成績入力
+  - `GradeEntryValidationFailures` / 成績入力値の検証エラー
+
 ### 📌 GradeFinalized / 成績確定された
 入力された成績が教員によって最終確認され、正式に確定されたことを表すイベント。このイベント以降、成績は公式記録となり、単位認定プロセスが開始可能となる。
 - **トリガーコマンド**: `FinalizeGrade` / 成績を確定する
@@ -98,9 +108,9 @@ enum GraduationStatus {
 ```typescript
 AcademicRecord {
   studentId: StudentId           // 学生識別子
-  completedCourses: CompletedCourse[]  // 修了科目
+  completedCourses: CompletedCourse[]  // 修了科目（複数科目履修により動的に拡張）
   totalCredits: CreditUnit       // 総取得単位数（共有バリューオブジェクト）
-  gpa: number                   // GPA
+  gpa: number                   // GPA（複数科目成績の加重平均）
   academicStatus: AcademicStatus // 学習状況（このコンテキスト固有）
   lastUpdated: Date
 }
