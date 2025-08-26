@@ -2,8 +2,8 @@ import * as Effect from 'effect/Effect';
 import { StudentId, SemesterId, CreditUnit } from '../../../../shared-kernel/index.js';
 import { CoursesSelected } from '../../domain/events/RegistrationEvents.js';
 import { SelectCourses } from '../../domain/commands/RegistrationCommands.js';
-import { CourseRegistrationDomainError, CreditLimitExceeded } from '../../domain/errors/DomainErrors.js';
-import { StudentRegistration } from '../../domain/aggregates/StudentRegistration.js';
+import { CourseRegistrationDomainError } from '../../domain/errors/DomainErrors.js';
+import { StudentRegistration, CourseSelection } from '../../domain/aggregates/StudentRegistration.js';
 import { EventStore, EventStoreError } from '../../../../infrastructure/event-store/index.js';
 import { GetStudentRegistrationHandler, StudentRegistrationWithActualCredits } from '../query-handlers/GetStudentRegistrationHandler.js';
 
@@ -20,54 +20,30 @@ export const SelectCoursesHandler = {
         command.semesterId
       );
 
-      // 2. 選択科目の重複チェック
-      const courseIds = command.courseSelections.map(selection => selection.courseId);
-      const uniqueCourseIds = [...new Set(courseIds)];
-      if (courseIds.length !== uniqueCourseIds.length) {
-        yield* Effect.fail(new CreditLimitExceeded({
-          message: "同一科目が複数選択されています",
-          currentCredits: 0,
-          limit: 0
-        }));
-      }
-
-      // 3. 既選択科目との重複チェック
-      const existingCourseIds = registration.selectedCourses?.map(course => course.courseId) || [];
-      const duplicateCourseIds = courseIds.filter(courseId => 
-        existingCourseIds.includes(courseId)
-      );
-      if (duplicateCourseIds.length > 0) {
-        yield* Effect.fail(new CreditLimitExceeded({
-          message: `既に選択済みの科目が含まれています: ${duplicateCourseIds.join(', ')}`,
-          currentCredits: 0,
-          limit: 0
-        }));
-      }
-
-      // 4. 単位数制限チェック（一括計算）
+      // 2. ドメインロジックによる選択科目検証
       const actualCurrentCredits = registration.actualTotalCredits || 0;
-      const additionalCredits = command.courseSelections.reduce(
+      const courseSelections: CourseSelection[] = command.courseSelections.map(selection => ({
+        courseId: selection.courseId,
+        credits: selection.credits
+      }));
+      
+      const validatedSelections = yield* StudentRegistration.selectCourses(
+        registration,
+        courseSelections,
+        actualCurrentCredits
+      );
+
+      // 3. CoursesSelected イベント生成
+      const additionalCredits = validatedSelections.reduce(
         (sum, selection) => sum + Number(selection.credits), 
         0
       );
-      const newTotalCredits = actualCurrentCredits + additionalCredits;
-      const creditLimit = 24;
-
-      if (newTotalCredits > creditLimit) {
-        yield* Effect.fail(new CreditLimitExceeded({
-          message: `単位数制限（${creditLimit}単位）を超過します。選択科目合計: ${additionalCredits}単位、制限まで残り: ${creditLimit - actualCurrentCredits}単位`,
-          currentCredits: actualCurrentCredits,
-          limit: creditLimit,
-          attemptedCredits: additionalCredits
-        }));
-      }
-
-      // 5. CoursesSelected イベント生成
+      
       const event: CoursesSelected = {
         type: "CoursesSelected",
         studentId: command.studentId,
         semesterId: command.semesterId,
-        courseSelections: command.courseSelections.map(selection => ({
+        courseSelections: validatedSelections.map(selection => ({
           courseId: selection.courseId,
           credits: selection.credits
         })),
@@ -75,7 +51,7 @@ export const SelectCoursesHandler = {
         timestamp: new Date()
       };
 
-      // 6. イベントストアへの保存
+      // 4. イベントストアへの保存
       const eventStore = yield* EventStore;
       const streamId = `student-registration-${command.studentId}-${command.semesterId}`;
       const domainEvent = {
@@ -84,7 +60,7 @@ export const SelectCoursesHandler = {
       };
       yield* eventStore.append(streamId, [domainEvent]);
 
-      // 7. 生成されたイベントを返す
+      // 5. 生成されたイベントを返す
       return event;
     })
 } as const;

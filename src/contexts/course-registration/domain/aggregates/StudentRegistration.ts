@@ -1,6 +1,8 @@
 import * as Schema from '@effect/schema/Schema';
+import * as Effect from 'effect/Effect';
 import { StudentId, CourseId, SemesterId, CreditUnit } from '../../../../shared-kernel/index.js';
 import { RegistrationStatus, CourseType } from '../value-objects/index.js';
+import { CreditLimitExceeded } from '../errors/DomainErrors.js';
 
 /**
  * 選択科目スキーマ
@@ -39,6 +41,15 @@ export const SelectedCourseModule = {
  * 単位数制限上限（24単位）
  * CreditUnitは10単位制限があるため、比較用に直接値を使用
  */
+const CREDIT_LIMIT = 24;
+
+/**
+ * コース選択データの型定義
+ */
+export interface CourseSelection {
+  readonly courseId: CourseId;
+  readonly credits: CreditUnit;
+}
 
 export const StudentRegistrationModule = {
   Schema: StudentRegistrationSchema,
@@ -54,6 +65,60 @@ export const StudentRegistrationModule = {
     submittedAt: undefined,
     confirmedAt: undefined
   }),
+
+  /**
+   * コース選択のドメインロジック
+   * 重複チェックと単位数制限チェックを含む
+   */
+  selectCourses: (
+    registration: StudentRegistration,
+    courseSelections: readonly CourseSelection[],
+    actualCurrentCredits: number
+  ): Effect.Effect<CourseSelection[], CreditLimitExceeded> =>
+    Effect.gen(function* () {
+      // 1. 選択科目の重複チェック
+      const courseIds = courseSelections.map(selection => selection.courseId);
+      const uniqueCourseIds = [...new Set(courseIds)];
+      if (courseIds.length !== uniqueCourseIds.length) {
+        yield* Effect.fail(new CreditLimitExceeded({
+          message: "同一科目が複数選択されています",
+          currentCredits: actualCurrentCredits,
+          limit: CREDIT_LIMIT
+        }));
+      }
+
+      // 2. 既選択科目との重複チェック
+      const existingCourseIds = registration.selectedCourses?.map(course => course.courseId) || [];
+      const duplicateCourseIds = courseIds.filter(courseId =>
+        existingCourseIds.includes(courseId)
+      );
+      if (duplicateCourseIds.length > 0) {
+        yield* Effect.fail(new CreditLimitExceeded({
+          message: `既に選択済みの科目が含まれています: ${duplicateCourseIds.join(', ')}`,
+          currentCredits: actualCurrentCredits,
+          limit: CREDIT_LIMIT
+        }));
+      }
+
+      // 3. 単位数制限チェック
+      const additionalCredits = courseSelections.reduce(
+        (sum, selection) => sum + Number(selection.credits),
+        0
+      );
+      const newTotalCredits = actualCurrentCredits + additionalCredits;
+
+      if (newTotalCredits > CREDIT_LIMIT) {
+        yield* Effect.fail(new CreditLimitExceeded({
+          message: `単位数制限（${CREDIT_LIMIT}単位）を超過します。選択科目合計: ${additionalCredits}単位、制限まで残り: ${CREDIT_LIMIT - actualCurrentCredits}単位`,
+          currentCredits: actualCurrentCredits,
+          limit: CREDIT_LIMIT,
+          attemptedCredits: additionalCredits
+        }));
+      }
+
+      // 4. 検証に成功した場合は選択科目を返す
+      return courseSelections as CourseSelection[];
+    })
 } as const;
 
 export { StudentRegistrationModule as StudentRegistration, SelectedCourseModule as SelectedCourse };
