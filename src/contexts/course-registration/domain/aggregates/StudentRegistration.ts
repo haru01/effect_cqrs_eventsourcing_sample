@@ -1,9 +1,9 @@
 import * as Schema from '@effect/schema/Schema';
 import * as Effect from 'effect/Effect';
-import { StudentId, CourseId, SemesterId, CreditUnit } from '@shared/index.js';
+import { StudentId, CourseId, SemesterId, CreditUnit } from '../../../../shared-kernel/index.js';
 import { RegistrationStatus, CourseType } from '../value-objects/index.js';
 import { CreditLimitExceeded } from '../errors/DomainErrors.js';
-import type { CourseSelected } from '../events/CourseSelected.js';
+import { CoursesSelected } from '../events/RegistrationEvents.js';
 
 /**
  * 選択科目スキーマ
@@ -44,6 +44,43 @@ export const SelectedCourseModule = {
  */
 const CREDIT_LIMIT = 24;
 
+/**
+ * コース選択データの型定義
+ */
+export interface CourseSelection {
+  readonly courseId: CourseId;
+  readonly credits: CreditUnit;
+}
+
+/**
+ * 追加単位数を計算し、制限超過時はエラーを返す
+ */
+const validateAdditionalCredits = (
+  registration: StudentRegistration,
+  courseSelections: readonly CourseSelection[]
+): Effect.Effect<number, CreditLimitExceeded> => {
+      // 現在の履修済み単位数を計算
+    const currentCredits = registration.selectedCourses.reduce(
+      (sum, course) => sum + Number(course.credits),
+      0
+    );
+  const additionalCredits = courseSelections.reduce(
+    (sum, selection) => sum + Number(selection.credits),
+    0
+  );
+
+  if (currentCredits + additionalCredits > CREDIT_LIMIT) {
+    return Effect.fail(new CreditLimitExceeded({
+      message: `単位数制限（${CREDIT_LIMIT}単位）を超過します。選択科目合計: ${additionalCredits}単位、制限まで残り: ${CREDIT_LIMIT - currentCredits}単位`,
+      currentCredits,
+      limit: CREDIT_LIMIT,
+      attemptedCredits: additionalCredits
+    }));
+  }
+
+  return Effect.succeed(additionalCredits);
+};
+
 export const StudentRegistrationModule = {
   Schema: StudentRegistrationSchema,
   make: (
@@ -58,47 +95,28 @@ export const StudentRegistrationModule = {
     submittedAt: undefined,
     confirmedAt: undefined
   }),
+
   /**
-   * 単位数制限チェック付き科目追加（イベント生成のみ）
-   * 24単位制限を超過する場合はCreditLimitExceededエラーを発生
-   * 成功時はCourseSelectedイベントのみを返す（集約の更新はイベント適用時に行う）
+   * 集約に対してコース選択を実行し、イベントを生成
    */
-  addCourseWithLimitCheck: (
+  selectCourses: (
     registration: StudentRegistration,
-    course: SelectedCourse
-  ): Effect.Effect<CourseSelected, CreditLimitExceeded> =>
+    courseSelections: readonly CourseSelection[]
+  ): Effect.Effect<CoursesSelected, CreditLimitExceeded> =>
     Effect.gen(function* () {
-      // CourseSelectedイベントのインポートが必要
-      const { CourseSelected } = yield* Effect.promise(() => import('../events/CourseSelected.js'));
-
-      // CreditUnitの制限を回避して直接数値で計算
-      const currentCreditsValue = Number(registration.totalCredits);
-      const additionalCreditsValue = Number(course.credits);
-      const newTotalCreditsValue = currentCreditsValue + additionalCreditsValue;
-
-      if (newTotalCreditsValue > CREDIT_LIMIT) {
-        yield* Effect.fail(new CreditLimitExceeded({
-          message: `単位数制限（${CREDIT_LIMIT}単位）を超過します`,
-          currentCredits: currentCreditsValue,
-          limit: CREDIT_LIMIT
-        }));
-      }
-
-      // イベントを生成（集約の更新はしない - イベントソーシング原則）
-      // totalCreditsはイベント適用後の値を計算して含める
-      const event = CourseSelected.make({
+      const additionalCredits = yield* validateAdditionalCredits(registration, courseSelections);
+      return {
+        type: "CoursesSelected" as const,
         studentId: registration.studentId,
         semesterId: registration.semesterId,
-        courseId: course.courseId,
-        credits: course.credits,
-        courseType: course.courseType,
-        isRequired: course.isRequired,
-        timestamp: new Date(),
-        totalCredits: CreditUnit.make(Math.min(newTotalCreditsValue, 10)) // CreditUnit制約対応
-      });
-
-      return event;
-    }),
+        courseSelections: courseSelections.map(selection => ({
+          courseId: selection.courseId,
+          credits: selection.credits
+        })),
+        totalCreditsAdded: additionalCredits,
+        timestamp: new Date()
+      };
+    })
 } as const;
 
 export { StudentRegistrationModule as StudentRegistration, SelectedCourseModule as SelectedCourse };

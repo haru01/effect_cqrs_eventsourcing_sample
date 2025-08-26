@@ -1,5 +1,5 @@
 import * as Schema from '@effect/schema/Schema';
-import { StudentId, CourseId, SemesterId } from '@shared/index.js';
+import { StudentId, CourseId, SemesterId, CreditUnit } from '../../../../shared-kernel/index.js';
 
 export const StartRegistrationPeriodSchema = Schema.Struct({
   type: Schema.Literal("StartRegistrationPeriod"),
@@ -10,14 +10,6 @@ export const StartRegistrationPeriodSchema = Schema.Struct({
 
 export type StartRegistrationPeriod = Schema.Schema.Type<typeof StartRegistrationPeriodSchema>;
 
-export const SelectCourseSchema = Schema.Struct({
-  type: Schema.Literal("SelectCourse"),
-  studentId: StudentId.Schema,
-  semesterId: SemesterId.Schema,
-  courseId: CourseId.Schema
-});
-
-export type SelectCourse = Schema.Schema.Type<typeof SelectCourseSchema>;
 
 export const SubmitRegistrationSchema = Schema.Struct({
   type: Schema.Literal("SubmitRegistration"),
@@ -44,9 +36,26 @@ export const DropCourseSchema = Schema.Struct({
 
 export type DropCourse = Schema.Schema.Type<typeof DropCourseSchema>;
 
+// Course Selection for multiple courses
+export const CourseSelectionSchema = Schema.Struct({
+  courseId: CourseId.Schema,
+  credits: CreditUnit.Schema
+});
+
+export type CourseSelection = Schema.Schema.Type<typeof CourseSelectionSchema>;
+
+export const SelectCoursesSchema = Schema.Struct({
+  type: Schema.Literal("SelectCourses"),
+  studentId: StudentId.Schema,
+  semesterId: SemesterId.Schema,
+  courseSelections: Schema.Array(CourseSelectionSchema)
+});
+
+export type SelectCourses = Schema.Schema.Type<typeof SelectCoursesSchema>;
+
 export type RegistrationCommand =
   | StartRegistrationPeriod
-  | SelectCourse
+  | SelectCourses
   | SubmitRegistration
   | ApproveRegistration
   | DropCourse;
