@@ -55,7 +55,6 @@ export const CoursesSelectedSchema = Schema.Struct({
   studentId: StudentId.Schema,
   semesterId: SemesterId.Schema,
   courseSelections: Schema.Array(SelectedCourseSchema),
-  totalCreditsAdded: Schema.Number,
   timestamp: Schema.Date
 });
 

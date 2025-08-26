@@ -32,13 +32,12 @@ describe('Story 2.1: 複数履修科目選択', () => {
       // When: 学生が複数科目を選択するコマンドを実行する
       const program = Effect.gen(function* () {
         const event = yield* SelectCoursesHandler.handle(command);
-        
+
         // Then: CoursesSelected イベントが発生する
         expect(event.type).toBe("CoursesSelected");
         expect(event.studentId).toBe(studentId);
         expect(event.semesterId).toBe(semesterId);
         expect(event.courseSelections).toHaveLength(3);
-        expect(event.totalCreditsAdded).toBe(7); // 2+3+2=7
         expect(event.timestamp).toBeInstanceOf(Date);
 
         // And: 選択された科目情報が正しく記録される
@@ -52,7 +51,7 @@ describe('Story 2.1: 複数履修科目選択', () => {
         // And: プロジェクションでStudentRegistrationが復元できる
         const query: GetStudentRegistrationQuery = { studentId, semesterId };
         const registration = yield* GetStudentRegistrationHandler.handle(query);
-        
+
         expect(registration.studentId).toBe(studentId);
         expect(registration.semesterId).toBe(semesterId);
         expect(registration.selectedCourses).toHaveLength(3);
@@ -83,7 +82,8 @@ describe('Story 2.1: 複数履修科目選択', () => {
       // When/Then: 適切に処理される（0単位で成功）
       const program = Effect.gen(function* () {
         const event = yield* SelectCoursesHandler.handle(command);
-        expect(event.totalCreditsAdded).toBe(0);
+        // courseSelectionsが空の場合
+        expect(event.courseSelections).toHaveLength(0);
         return event;
       });
 
@@ -120,7 +120,7 @@ describe('Story 2.1: 複数履修科目選択', () => {
       // When: 制限を超過する科目を選択する
       const program = Effect.gen(function* () {
         const error = yield* Effect.flip(SelectCoursesHandler.handle(command));
-        
+
         // Then: CreditLimitExceeded エラーが発生する
         expect(error._tag).toBe("CreditLimitExceeded");
         if (error._tag === "CreditLimitExceeded") {
@@ -131,17 +131,17 @@ describe('Story 2.1: 複数履修科目選択', () => {
           expect(error.limit).toBe(24); // 単位制限
           expect(error.attemptedCredits).toBe(28); // 選択しようとした単位数
         }
-        
+
         // And: プロジェクションでStudentRegistrationが復元できない（ストリームが存在しない）
         const query: GetStudentRegistrationQuery = { studentId, semesterId };
         const projectionError = yield* Effect.flip(GetStudentRegistrationHandler.handle(query));
-        
+
         expect(projectionError).toBeInstanceOf(NotFoundStudentRegistration);
         if (projectionError instanceof NotFoundStudentRegistration) {
           expect(projectionError.studentId).toBe(studentId);
           expect(projectionError.semesterId).toBe(semesterId);
         }
-        
+
         return error;
       });
 
@@ -180,7 +180,6 @@ describe('Story 2.1: 複数履修科目選択', () => {
       const program = Effect.gen(function* () {
         const event = yield* SelectCoursesHandler.handle(command);
         expect(event.type).toBe("CoursesSelected");
-        expect(event.totalCreditsAdded).toBe(24); // 実際の単位数が正しく記録される
         return event;
       });
 
