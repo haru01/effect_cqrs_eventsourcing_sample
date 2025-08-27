@@ -108,12 +108,11 @@ export const StudentRegistrationModule = {
     courseSelections: readonly CourseSelection[]
   ): Effect.Effect<CoursesSelected, CreditLimitExceeded> =>
     Effect.gen(function* () {
-      // 現在の単位数と追加単位数を計算
-      const currentCredits = registration.totalCredits;
+      // 追加単位数を計算
       const additionalCredits = calculateAdditionalCredits(courseSelections);
 
       // 単位数制限をチェック
-      yield* validateCreditLimit(currentCredits, additionalCredits);
+      yield* validateCreditLimit(registration.totalCredits, additionalCredits);
 
       // イベントを生成
       return {
