@@ -1,6 +1,6 @@
 import * as Effect from 'effect/Effect';
 import * as Schema from '@effect/schema/Schema';
-import { StudentId, SemesterId, CreditUnit } from '../../../../shared-kernel/index.js';
+import { StudentId, SemesterId } from '../../../../shared-kernel/index.js';
 import { CourseType } from '../../domain/value-objects/index.js';
 import { EventStore } from '../../../../infrastructure/event-store/index.js';
 import { StudentRegistration } from '../../domain/aggregates/StudentRegistration.js';
@@ -83,7 +83,7 @@ export const GetStudentRegistrationHandler = {
             registration = {
               ...registration,
               selectedCourses: [...registration.selectedCourses, selectedCourse],
-              totalCredits: CreditUnit.make(Math.min(totalCreditsAccumulator + Number(courseSelection.credits), 10)) // CreditUnitの制約でおかしなことになってる件。
+              totalCredits: totalCreditsAccumulator + Number(courseSelection.credits)
             };
 
             totalCreditsAccumulator += Number(courseSelection.credits);

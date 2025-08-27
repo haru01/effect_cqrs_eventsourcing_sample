@@ -28,7 +28,7 @@ export const StudentRegistrationSchema = Schema.Struct({
   semesterId: SemesterId.Schema.annotations({ title: "学期ID" }),
   selectedCourses: Schema.Array(SelectedCourseSchema).annotations({ title: "選択科目リスト" }),
   registrationStatus: RegistrationStatus.Schema.annotations({ title: "履修ステータス" }),
-  totalCredits: CreditUnit.Schema.annotations({ title: "合計単位数" }),
+  totalCredits: Schema.Number.annotations({ title: "合計単位数" }),
   submittedAt: Schema.optional(Schema.Date).annotations({ title: "提出日時" }),
   confirmedAt: Schema.optional(Schema.Date).annotations({ title: "確定日時" })
 });
@@ -53,18 +53,7 @@ export interface CourseSelection {
   readonly credits: CreditUnit;
 }
 
-/**
- * 選択科目の追加単位数を計算
- */
-const calculateAdditionalCredits = (
-  courseSelections: readonly CourseSelection[]
-): number =>
-  courseSelections.reduce(
-    (sum, selection) => sum + Number(selection.credits),
-    0
-  );
-
-/**
+ /**
  * 単位数制限をチェック
  */
 const validateCreditLimit = (
@@ -95,7 +84,7 @@ export const StudentRegistrationModule = {
     semesterId,
     selectedCourses: [],
     registrationStatus: RegistrationStatus.Value.Draft,
-    totalCredits: CreditUnit.zero(),
+    totalCredits: 0,
     submittedAt: undefined,
     confirmedAt: undefined
   }),
@@ -108,12 +97,11 @@ export const StudentRegistrationModule = {
     courseSelections: readonly CourseSelection[]
   ): Effect.Effect<CoursesSelected, CreditLimitExceeded> =>
     Effect.gen(function* () {
-      // 現在の単位数と追加単位数を計算
-      const currentCredits = StudentRegistrationModule.currentCredits(registration);
-      const additionalCredits = calculateAdditionalCredits(courseSelections);
+      // 追加単位数を計算
+      const additionalCredits = courseSelections.reduce((sum, selection) => sum + Number(selection.credits), 0);
 
       // 単位数制限をチェック
-      yield* validateCreditLimit(currentCredits, additionalCredits);
+      yield* validateCreditLimit(registration.totalCredits, additionalCredits);
 
       // イベントを生成
       return {
@@ -127,12 +115,6 @@ export const StudentRegistrationModule = {
         timestamp: new Date()
       };
     }),
-  // 現在の履修済み単位数を計算
-  currentCredits: (registration: StudentRegistration): number =>
-    registration.selectedCourses.reduce(
-      (sum, course) => sum + Number(course.credits),
-      0
-    )
 } as const;
 
 export { StudentRegistrationModule as StudentRegistration, SelectedCourseModule as SelectedCourse };
