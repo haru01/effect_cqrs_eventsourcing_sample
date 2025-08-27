@@ -1,5 +1,6 @@
 import * as Schema from '@effect/schema/Schema';
 import * as Effect from 'effect/Effect';
+import { pipe } from 'effect/Function';
 import { StudentId, CourseId, SemesterId, CreditUnit } from '../../../../shared-kernel/index.js';
 import { RegistrationStatus, CourseType } from '../value-objects/index.js';
 import { CreditLimitExceeded } from '../errors/DomainErrors.js';
@@ -53,33 +54,36 @@ export interface CourseSelection {
 }
 
 /**
- * 追加単位数を計算し、制限超過時はエラーを返す
+ * 選択科目の追加単位数を計算
  */
-const validateAdditionalCredits = (
-  registration: StudentRegistration,
+const calculateAdditionalCredits = (
   courseSelections: readonly CourseSelection[]
-): Effect.Effect<number, CreditLimitExceeded> => {
-      // 現在の履修済み単位数を計算
-    const currentCredits = registration.selectedCourses.reduce(
-      (sum, course) => sum + Number(course.credits),
-      0
-    );
-  const additionalCredits = courseSelections.reduce(
+): number =>
+  courseSelections.reduce(
     (sum, selection) => sum + Number(selection.credits),
     0
   );
 
-  if (currentCredits + additionalCredits > CREDIT_LIMIT) {
-    return Effect.fail(new CreditLimitExceeded({
-      message: `単位数制限（${CREDIT_LIMIT}単位）を超過します。選択科目合計: ${additionalCredits}単位、制限まで残り: ${CREDIT_LIMIT - currentCredits}単位`,
-      currentCredits,
-      limit: CREDIT_LIMIT,
-      attemptedCredits: additionalCredits
-    }));
-  }
+/**
+ * 単位数制限をチェック
+ */
+const validateCreditLimit = (
+  currentCredits: number,
+  additionalCredits: number
+): Effect.Effect<number, CreditLimitExceeded> =>
+  pipe(
+    Effect.succeed(additionalCredits),
+    Effect.filterOrFail(
+      () => currentCredits + additionalCredits <= CREDIT_LIMIT,
+      () => new CreditLimitExceeded({
+        message: `単位数制限（${CREDIT_LIMIT}単位）を超過します。選択科目合計: ${additionalCredits}単位、制限まで残り: ${CREDIT_LIMIT - currentCredits}単位`,
+        currentCredits,
+        limit: CREDIT_LIMIT,
+        attemptedCredits: additionalCredits
+      })
+    )
+  );
 
-  return Effect.succeed(additionalCredits);
-};
 
 export const StudentRegistrationModule = {
   Schema: StudentRegistrationSchema,
@@ -104,7 +108,14 @@ export const StudentRegistrationModule = {
     courseSelections: readonly CourseSelection[]
   ): Effect.Effect<CoursesSelected, CreditLimitExceeded> =>
     Effect.gen(function* () {
-      const additionalCredits = yield* validateAdditionalCredits(registration, courseSelections);
+      // 現在の単位数と追加単位数を計算
+      const currentCredits = StudentRegistrationModule.currentCredits(registration);
+      const additionalCredits = calculateAdditionalCredits(courseSelections);
+
+      // 単位数制限をチェック
+      yield* validateCreditLimit(currentCredits, additionalCredits);
+
+      // イベントを生成
       return {
         type: "CoursesSelected" as const,
         studentId: registration.studentId,
@@ -113,10 +124,15 @@ export const StudentRegistrationModule = {
           courseId: selection.courseId,
           credits: selection.credits
         })),
-        totalCreditsAdded: additionalCredits,
         timestamp: new Date()
       };
-    })
+    }),
+  // 現在の履修済み単位数を計算
+  currentCredits: (registration: StudentRegistration): number =>
+    registration.selectedCourses.reduce(
+      (sum, course) => sum + Number(course.credits),
+      0
+    )
 } as const;
 
 export { StudentRegistrationModule as StudentRegistration, SelectedCourseModule as SelectedCourse };

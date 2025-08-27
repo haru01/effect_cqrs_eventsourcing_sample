@@ -46,6 +46,7 @@ export const SelectCoursesHandler = {
 /**
  * 学生の履修登録情報を取得または初期化する
  * EventStoreから現在の状態を読み取り、存在しない場合は初期状態を返す
+ * TODO：暫定処置。本来は、RegistrationPeriodStarted / 履修登録期間開始されたが事前に発行されており、studentId, semesterIdで取得できるはず。
  */
 const getOrCreateStudentRegistration = (
   studentId: StudentId,
