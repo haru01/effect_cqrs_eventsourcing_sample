@@ -55,8 +55,8 @@ describe('Story 2.1: 複数履修科目選択', () => {
         expect(registration.studentId).toBe(studentId);
         expect(registration.semesterId).toBe(semesterId);
         expect(registration.selectedCourses).toHaveLength(3);
+        expect(registration.totalCredits).toBe(7); // 合計単位数
         expect(registration.actualTotalCredits).toBe(7); // 実際の累積単位数
-        expect(Number(registration.totalCredits)).toBe(7); // CreditUnit制限内での値
 
         return event;
       });
