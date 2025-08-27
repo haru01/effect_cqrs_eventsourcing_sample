@@ -53,18 +53,7 @@ export interface CourseSelection {
   readonly credits: CreditUnit;
 }
 
-/**
- * 選択科目の追加単位数を計算
- */
-const calculateAdditionalCredits = (
-  courseSelections: readonly CourseSelection[]
-): number =>
-  courseSelections.reduce(
-    (sum, selection) => sum + Number(selection.credits),
-    0
-  );
-
-/**
+ /**
  * 単位数制限をチェック
  */
 const validateCreditLimit = (
@@ -109,7 +98,7 @@ export const StudentRegistrationModule = {
   ): Effect.Effect<CoursesSelected, CreditLimitExceeded> =>
     Effect.gen(function* () {
       // 追加単位数を計算
-      const additionalCredits = calculateAdditionalCredits(courseSelections);
+      const additionalCredits = courseSelections.reduce((sum, selection) => sum + Number(selection.credits), 0);
 
       // 単位数制限をチェック
       yield* validateCreditLimit(registration.totalCredits, additionalCredits);
